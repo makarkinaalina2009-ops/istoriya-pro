@@ -1,1 +1,1471 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ІсторіяПРО — Підготовка до НМТ</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --primary:#9B7FD4;--primary-light:#C4A8F0;--primary-soft:#EDE6F8;--primary-dark:#6A4FB6;
+  --gray-50:#F7F6FA;--gray-100:#EFECF5;--gray-200:#E0DBF0;--gray-300:#C8C0DE;
+  --gray-400:#9D94B8;--gray-500:#6B6286;--gray-600:#4A4265;--gray-700:#322D4A;
+  --white:#FFF;--success:#5AB87A;--danger:#E06060;--warning:#D4A843;
+  --sidebar-w:275px;--font-main:'Nunito',sans-serif;--font-head:'Unbounded',sans-serif;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 2px 12px rgba(100,70,180,.10);--shadow-md:0 4px 24px rgba(100,70,180,.14);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font-main);background:var(--gray-50);color:var(--gray-700);min-height:100vh;overflow-x:hidden;}
 
+/* ── LOADING SCREEN ── */
+#loadingScreen{position:fixed;inset:0;background:linear-gradient(135deg,#EDE6F8,#F7F4FE,#E8F0FB);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;z-index:9999;}
+.loader-logo{font-family:var(--font-head);font-size:1.8rem;color:var(--primary-dark);}
+.loader-logo span{color:var(--primary);}
+.spinner{width:36px;height:36px;border:3px solid var(--gray-200);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loader-txt{font-size:.82rem;color:var(--gray-400);}
+
+/* ── AUTH ── */
+#authScreen{position:fixed;inset:0;background:linear-gradient(135deg,#EDE6F8 0%,#F7F4FE 55%,#E8F0FB 100%);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.35rem;overflow-y:auto;padding:2rem;}
+#authScreen.show{display:flex;}
+.auth-logo{font-family:var(--font-head);font-size:1.85rem;color:var(--primary-dark);letter-spacing:-1px;text-align:center;}
+.auth-logo span{color:var(--primary);}
+.auth-tagline{font-size:.88rem;color:var(--gray-400);margin-top:-.5rem;text-align:center;}
+.auth-tabs{display:flex;gap:.3rem;background:var(--gray-100);border-radius:var(--radius-sm);padding:.22rem;}
+.auth-tab{padding:.42rem 1.4rem;border-radius:6px;font-size:.83rem;font-weight:700;cursor:pointer;color:var(--gray-500);transition:all .14s;}
+.auth-tab.active{background:var(--white);color:var(--primary-dark);box-shadow:var(--shadow);}
+.auth-mode-tabs{display:flex;gap:.3rem;background:var(--primary-soft);border-radius:var(--radius-sm);padding:.22rem;margin-bottom:.5rem;}
+.auth-mode-tab{padding:.38rem 1.1rem;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--primary-dark);transition:all .14s;opacity:.55;}
+.auth-mode-tab.active{background:var(--white);opacity:1;box-shadow:var(--shadow);}
+.auth-box{background:var(--white);border-radius:var(--radius);padding:1.75rem 1.85rem;width:380px;box-shadow:var(--shadow-md);}
+.auth-box h3{font-family:var(--font-head);font-size:.85rem;color:var(--primary-dark);margin-bottom:1.1rem;text-align:center;}
+.fg{margin-bottom:.8rem;}
+.fg label{font-size:.76rem;font-weight:700;color:var(--gray-500);display:block;margin-bottom:.28rem;}
+.fg input{width:100%;padding:.52rem .82rem;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.87rem;color:var(--gray-700);outline:none;transition:border-color .14s;}
+.fg input:focus{border-color:var(--primary);}
+.fg .hint{font-size:.7rem;color:var(--gray-400);margin-top:.22rem;}
+.auth-err{color:var(--danger);font-size:.78rem;text-align:center;min-height:.95rem;margin-bottom:.45rem;}
+.auth-success{color:var(--success);font-size:.78rem;text-align:center;min-height:.95rem;margin-bottom:.45rem;}
+.btn{display:inline-flex;align-items:center;gap:.42rem;padding:.52rem 1.2rem;border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.86rem;font-weight:700;cursor:pointer;border:none;transition:all .14s;}
+.btn-primary{background:var(--primary);color:var(--white);}
+.btn-primary:hover{background:var(--primary-dark);}
+.btn-primary:disabled{opacity:.55;cursor:not-allowed;}
+.btn-outline{background:transparent;border:1.5px solid var(--primary);color:var(--primary);}
+.btn-outline:hover{background:var(--primary-soft);}
+.btn-sm{padding:.32rem .78rem;font-size:.76rem;}
+.btn-success{background:var(--success);color:var(--white);}
+.btn-danger{background:var(--danger);color:var(--white);}
+.btn-block{width:100%;justify-content:center;margin-top:.45rem;}
+.link-btn{background:none;border:none;color:var(--primary);font-family:var(--font-main);font-size:.78rem;cursor:pointer;text-decoration:underline;}
+
+/* ── SUPABASE CONFIG BANNER ── */
+#configBanner{background:#FFF4DE;border:1.5px solid var(--warning);border-radius:var(--radius-sm);padding:.85rem 1.1rem;font-size:.8rem;color:#8A5C00;margin-bottom:1rem;max-width:440px;text-align:center;display:none;}
+#configBanner.show{display:block;}
+#configBanner code{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px;font-size:.76rem;}
+
+/* ── APP ── */   
+#app{display:none;min-height:100vh;}
+#app.show{display:flex;}
+.sidebar{width:var(--sidebar-w);background:var(--white);border-right:1.5px solid var(--gray-100);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;}
+.sb-logo{padding:1rem 1.35rem .85rem;font-family:var(--font-head);font-size:.92rem;color:var(--primary-dark);border-bottom:1.5px solid var(--gray-100);display:flex;align-items:center;gap:.5rem;}
+.sb-logo .dot{width:8px;height:8px;border-radius:50%;background:var(--primary);}
+.sb-user{padding:.75rem 1.2rem;background:var(--primary-soft);margin:.6rem .6rem 0;border-radius:var(--radius-sm);display:flex;align-items:center;gap:.55rem;}
+.sb-av{width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;color:var(--white);flex-shrink:0;}
+.sb-uname{font-weight:700;font-size:.8rem;color:var(--primary-dark);}
+.sb-urole{font-size:.68rem;color:var(--gray-400);}
+.sb-section{padding:.6rem 1.15rem .22rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-300);}
+.sb-item{display:flex;align-items:center;gap:.62rem;padding:.52rem 1.15rem;cursor:pointer;border-radius:var(--radius-sm);margin:.07rem .42rem;font-size:.83rem;font-weight:600;color:var(--gray-600);transition:all .13s;}
+.sb-item:hover{background:var(--primary-soft);color:var(--primary-dark);}
+.sb-item.active{background:var(--primary);color:var(--white);}
+.sb-item .sbi-badge{margin-left:auto;background:var(--danger);color:var(--white);border-radius:999px;padding:1px 7px;font-size:.66rem;display:none;}
+.sb-item .sbi-badge.show{display:inline;}
+.sb-topics{padding:.18rem .42rem;}
+.tp-group{}
+.tp-hdr{display:flex;align-items:center;gap:.42rem;padding:.48rem .72rem;cursor:pointer;border-radius:var(--radius-sm);font-size:.78rem;font-weight:700;color:var(--gray-600);transition:background .12s;}
+.tp-hdr:hover{background:var(--gray-50);}
+.tp-arrow{font-size:.72rem;transition:transform .18s;flex-shrink:0;}
+.tp-hdr.open .tp-arrow{transform:rotate(90deg);}
+.tp-subs{display:none;padding-left:.8rem;}
+.tp-subs.open{display:block;}
+.tp-sub{display:flex;align-items:center;gap:.38rem;padding:.36rem .68rem;font-size:.76rem;cursor:pointer;border-radius:var(--radius-sm);color:var(--gray-500);transition:all .12s;}
+.tp-sub:hover{background:var(--primary-soft);color:var(--primary-dark);}
+.tp-sub .tsd{width:5px;height:5px;border-radius:50%;background:var(--gray-300);flex-shrink:0;}
+.tp-sub.theory .tsd{background:var(--primary);}
+.tp-sub.practice .tsd{background:var(--success);}
+.sb-progress{padding:.5rem 1.15rem;font-size:.72rem;color:var(--gray-400);border-top:1.5px solid var(--gray-100);margin-top:auto;}
+.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh;}
+.topbar{background:var(--white);border-bottom:1.5px solid var(--gray-100);padding:.65rem 1.75rem;display:flex;align-items:center;gap:.9rem;position:sticky;top:0;z-index:50;}
+.topbar-title{font-family:var(--font-head);font-size:.82rem;color:var(--gray-700);flex:1;}
+.tag{display:inline-flex;align-items:center;gap:.28rem;font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:999px;}
+.tag-blue{background:var(--primary-soft);color:var(--primary-dark);}
+.tag-green{background:#E6F7EE;color:#2E7D52;}
+.tag-orange{background:#FFF4DE;color:#8A5C00;}
+.content{padding:1.6rem 1.85rem;flex:1;}
+.page{display:none;}
+.page.active{display:block;}
+.card{background:var(--white);border-radius:var(--radius);padding:1.35rem;box-shadow:var(--shadow);border:1.5px solid var(--gray-100);margin-bottom:1rem;}
+.card-hdr{display:flex;align-items:center;gap:.55rem;margin-bottom:.9rem;}
+.card-hdr h3{font-size:.88rem;font-weight:700;color:var(--gray-700);}
+.badge{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:999px;}
+.badge-theory{background:var(--primary-soft);color:var(--primary-dark);}
+.badge-practice{background:#E6F7EE;color:#2E7D52;}
+.badge-hw{background:#FFF4DE;color:#8A5C00;}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:.85rem;margin-bottom:1.4rem;}
+.stat-card{background:var(--white);border-radius:var(--radius);padding:1rem .95rem;box-shadow:var(--shadow);border:1.5px solid var(--gray-100);}
+.stat-num{font-family:var(--font-head);font-size:1.55rem;color:var(--primary-dark);line-height:1;}
+.stat-lbl{font-size:.72rem;color:var(--gray-400);margin-top:.22rem;}
+.dash-welcome{font-family:var(--font-head);font-size:1.2rem;color:var(--primary-dark);margin-bottom:.28rem;}
+.dash-sub{font-size:.86rem;color:var(--gray-400);margin-bottom:1.6rem;}
+.tabs{display:flex;gap:.18rem;background:var(--gray-100);border-radius:var(--radius-sm);padding:.2rem;margin-bottom:1.3rem;}
+.tab{padding:.45rem .95rem;border-radius:6px;font-size:.8rem;font-weight:700;cursor:pointer;color:var(--gray-500);transition:all .13s;}
+.tab.active{background:var(--white);color:var(--primary-dark);box-shadow:var(--shadow);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+.file-drop{border:2px dashed var(--gray-200);border-radius:var(--radius-sm);padding:1.5rem;text-align:center;cursor:pointer;transition:all .17s;background:var(--gray-50);}
+.file-drop:hover{border-color:var(--primary);background:var(--primary-soft);}
+.file-drop p{font-size:.8rem;color:var(--gray-400);}
+.file-drop p strong{color:var(--primary);}
+.file-item{display:flex;align-items:center;gap:.55rem;padding:.52rem .78rem;background:var(--gray-50);border-radius:var(--radius-sm);margin-bottom:.42rem;font-size:.8rem;}
+.fi-name{flex:1;color:var(--gray-700);}
+.fi-size{font-size:.7rem;color:var(--gray-400);}
+.fi-del{cursor:pointer;color:var(--danger);font-size:.8rem;}
+.notif-item{display:flex;align-items:flex-start;gap:.75rem;padding:.85rem .95rem;background:var(--white);border-radius:var(--radius-sm);margin-bottom:.6rem;box-shadow:var(--shadow);border-left:3px solid var(--primary);}
+.notif-item.unread{border-left-color:var(--primary-dark);background:var(--primary-soft);}
+.notif-av{width:34px;height:34px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.72rem;color:var(--white);flex-shrink:0;}
+.notif-title{font-weight:700;font-size:.83rem;color:var(--gray-700);}
+.notif-desc{font-size:.76rem;color:var(--gray-500);margin-top:.14rem;}
+.notif-time{font-size:.68rem;color:var(--gray-300);margin-top:.22rem;}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+.sec-hdr h2{font-family:var(--font-head);font-size:.92rem;color:var(--primary-dark);}
+.result-box{background:var(--primary-soft);border-radius:var(--radius-sm);padding:.72rem .95rem;margin-top:.65rem;font-size:.8rem;color:var(--primary-dark);}
+.test-li{background:var(--white);border-radius:var(--radius);padding:.95rem 1.2rem;box-shadow:var(--shadow);border:1.5px solid var(--gray-100);margin-bottom:.75rem;display:flex;align-items:center;gap:.85rem;transition:border-color .13s;}
+.test-li:hover{border-color:var(--primary-light);}
+.tli-num{font-family:var(--font-head);font-size:.95rem;color:var(--primary);min-width:1.8rem;}
+.tli-info{flex:1;}
+.tli-name{font-weight:700;font-size:.85rem;color:var(--gray-700);}
+.tli-meta{font-size:.71rem;color:var(--gray-400);margin-top:.16rem;}
+#takeTest{display:none;position:fixed;inset:0;background:var(--gray-50);z-index:500;overflow-y:auto;}
+#takeTest.show{display:block;}
+.tt-layout{display:flex;min-height:100vh;}
+.tt-sidebar{width:76px;background:var(--white);border-right:1.5px solid var(--gray-100);padding:.7rem .38rem;display:flex;flex-direction:column;align-items:center;gap:.28rem;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.tt-sidebar-title{font-size:.58rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.18rem;}
+.tt-num{width:32px;height:32px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .13s;background:var(--gray-100);color:var(--gray-600);}
+.tt-num.saved{background:var(--primary);color:var(--white);}
+.tt-num.current{outline:2px solid var(--primary-dark);}
+.tt-main{flex:1;padding:1.6rem;max-width:800px;margin:0 auto;}
+.tt-header{font-family:var(--font-head);font-size:.92rem;color:var(--primary-dark);margin-bottom:1.3rem;}
+.tt-question{background:var(--white);border-radius:var(--radius);padding:1.35rem;box-shadow:var(--shadow);margin-bottom:1.15rem;border:1.5px solid var(--gray-100);}
+.tt-q-label{font-size:.68rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.42rem;}
+.tt-q-text{font-size:.9rem;color:var(--gray-700);margin-bottom:.85rem;line-height:1.6;}
+.tt-option{display:flex;align-items:center;gap:.65rem;padding:.55rem .82rem;border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);margin-bottom:.38rem;cursor:pointer;transition:all .13s;font-size:.86rem;}
+.tt-option:hover:not(.disabled){border-color:var(--primary-light);background:var(--primary-soft);}
+.tt-option.selected{border-color:var(--primary);background:var(--primary-soft);}
+.tt-option.correct{border-color:var(--success);background:#E6F7EE;}
+.tt-option.wrong{border-color:var(--danger);background:#FEECEC;}
+.tt-option.disabled{cursor:default;}
+.tt-option input{accent-color:var(--primary);}
+.match-row{display:flex;align-items:center;gap:.6rem;margin-bottom:.42rem;}
+.match-left{background:var(--primary-soft);border-radius:var(--radius-sm);padding:.42rem .68rem;font-size:.8rem;min-width:160px;}
+.match-right select{padding:.4rem .58rem;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.8rem;outline:none;min-width:165px;}
+.match-right select:focus{border-color:var(--primary);}
+.chrono-item{display:flex;align-items:center;gap:.58rem;margin-bottom:.42rem;}
+.ch-event{flex:1;background:var(--white);border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);padding:.42rem .68rem;font-size:.8rem;}
+.ch-sel{padding:.36rem;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.78rem;outline:none;min-width:75px;}
+.ch-sel:focus{border-color:var(--primary);}
+.open-cells{display:flex;gap:.42rem;flex-wrap:wrap;margin-top:.42rem;}
+.open-cell{padding:.45rem .7rem;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.86rem;width:60px;text-align:center;outline:none;transition:border-color .13s;}
+.open-cell:focus{border-color:var(--primary);}
+.open-cell.correct-cell{border-color:var(--success);background:#E6F7EE;}
+.open-cell.wrong-cell{border-color:var(--danger);background:#FEECEC;}
+.save-btn-wrap{margin-top:.8rem;}
+.explanation-box{background:var(--primary-soft);border-radius:var(--radius-sm);padding:.75rem .95rem;margin-top:.75rem;font-size:.78rem;color:var(--primary-dark);}
+.tt-result-screen{background:var(--white);border-radius:var(--radius);padding:2.25rem 1.85rem;box-shadow:var(--shadow-md);text-align:center;max-width:520px;margin:2rem auto;}
+.result-score{font-family:var(--font-head);font-size:2.3rem;color:var(--primary-dark);margin:1rem 0 .35rem;}
+.result-msg{font-size:.88rem;color:var(--gray-500);margin-bottom:1.35rem;}
+.topic-mgmt-item{background:var(--white);border-radius:var(--radius);padding:.85rem 1.15rem;box-shadow:var(--shadow);border:1.5px solid var(--gray-100);margin-bottom:.6rem;display:flex;align-items:center;gap:.85rem;}
+.tmi-num{font-family:var(--font-head);font-size:.82rem;color:var(--primary);min-width:1.85rem;}
+.tmi-info{flex:1;}
+.tmi-name-input{font-weight:700;font-size:.83rem;color:var(--gray-700);border:none;border-bottom:1.5px solid var(--gray-200);background:transparent;font-family:var(--font-main);outline:none;width:100%;transition:border-color .13s;}
+.tmi-name-input:focus{border-color:var(--primary);}
+.tmi-status{font-size:.7rem;margin-top:.18rem;}
+.toggle-sw{position:relative;width:38px;height:21px;}
+.toggle-sw input{opacity:0;width:0;height:0;}
+.toggle-sw .slider{position:absolute;inset:0;background:var(--gray-200);border-radius:999px;cursor:pointer;transition:.2s;}
+.toggle-sw .slider:before{content:'';position:absolute;width:15px;height:15px;left:3px;bottom:3px;background:var(--white);border-radius:50%;transition:.2s;}
+.toggle-sw input:checked+.slider{background:var(--success);}
+.toggle-sw input:checked+.slider:before{transform:translateX(17px);}
+.student-row{background:var(--white);border-radius:var(--radius-sm);padding:.72rem .95rem;box-shadow:var(--shadow);margin-bottom:.52rem;display:flex;align-items:center;gap:.72rem;border:1.5px solid var(--gray-100);}
+.stu-av{width:32px;height:32px;border-radius:50%;background:var(--primary-soft);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;color:var(--primary-dark);flex-shrink:0;}
+.form-group{margin-bottom:.85rem;}
+.form-group label{font-size:.76rem;font-weight:700;color:var(--gray-500);display:block;margin-bottom:.28rem;}
+.form-group input,.form-group select{width:100%;padding:.5rem .8rem;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.86rem;color:var(--gray-700);outline:none;transition:border-color .13s;}
+.form-group input:focus,.form-group select:focus{border-color:var(--primary);}
+textarea.ta{width:100%;padding:.52rem .8rem;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.84rem;resize:vertical;min-height:78px;outline:none;transition:border-color .13s;}
+textarea.ta:focus{border-color:var(--primary);}
+hr.div{border:none;border-top:1.5px solid var(--gray-100);margin:1rem 0;}
+.pbar{height:5px;background:var(--gray-100);border-radius:999px;overflow:hidden;margin-top:.38rem;}
+.pbar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary-light),var(--primary));}
+.empty{text-align:center;padding:2.25rem 1rem;color:var(--gray-300);}
+.empty .ei{font-size:2rem;margin-bottom:.55rem;}
+.empty p{font-size:.83rem;}
+.modal-overlay{position:fixed;inset:0;background:rgba(50,35,74,.45);display:none;align-items:center;justify-content:center;z-index:2000;}
+.modal-overlay.show{display:flex;}
+.modal-box{background:var(--white);border-radius:var(--radius);padding:1.85rem;width:375px;box-shadow:var(--shadow-md);}
+.modal-title{font-family:var(--font-head);font-size:.92rem;color:var(--primary-dark);margin-bottom:1.15rem;text-align:center;}
+.modal-footer{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem;}
+/* pending badge */
+.pending-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px;background:#FFF4DE;color:#8A5C00;}
+</style>
+</head>
+<body>
+
+<!-- ══════════ LOADING ══════════ -->
+<div id="loadingScreen">
+  <div class="loader-logo">Історія<span>ПРО</span></div>
+  <div class="spinner"></div>
+  <div class="loader-txt">Підключення до бази даних...</div>
+</div>
+
+<!-- ══════════ AUTH ══════════ -->
+<div id="authScreen">
+  <div class="auth-logo">Історія<span>ПРО</span></div>
+  <p class="auth-tagline">Платформа підготовки до НМТ з Історії України</p>
+
+  <div id="configBanner">
+    ⚠️ Supabase не налаштовано. Вставте <code>https://jltsznqsxhdgnwahpwxg.supabase.co/rest/v1/</code> та <code>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsdHN6bnFzeGhkZ253YWhwd3hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2ODM3MzgsImV4cCI6MjA5NjI1OTczOH0.L0zL-VddyAfS2UVzyEeuzTOwlPs_3WUQgL_B3fPk_jo</code> у скрипт.<br>
+    Або відкрийте <strong>SUPABASE_SETUP.md</strong> для інструкцій.
+  </div>
+
+  <!-- Role selector -->
+  <div class="auth-tabs">
+    <div class="auth-tab active" onclick="switchRole('student')">🎓 Учень</div>
+    <div class="auth-tab" onclick="switchRole('teacher')">📚 Вчитель</div>
+  </div>
+
+  <div class="auth-box">
+    <!-- LOGIN / REGISTER mode tabs -->
+    <div class="auth-mode-tabs" id="modeTabs">
+      <div class="auth-mode-tab active" onclick="switchMode('login')">Вхід</div>
+      <div class="auth-mode-tab" onclick="switchMode('register')">Реєстрація</div>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div id="loginForm">
+      <h3 id="loginTitle">Вхід як Учень</h3>
+      <div class="fg">
+        <label>Електронна адреса</label>
+        <input type="email" id="loginEmail" placeholder="your@email.com">
+      </div>
+      <div class="fg">
+        <label>Пароль</label>
+        <input type="password" id="loginPass" placeholder="••••••••">
+      </div>
+      <div class="auth-err" id="loginErr"></div>
+      <button class="btn btn-primary btn-block" id="loginBtn" onclick="doLogin()">Увійти</button>
+      <div style="text-align:center;margin-top:.75rem;">
+        <button class="link-btn" onclick="switchMode('register')">Ще немає акаунту? Зареєструватися</button>
+      </div>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="registerForm" style="display:none;">
+      <h3 id="registerTitle">Реєстрація Учня</h3>
+      <div class="fg">
+        <label>Прізвище та ім'я (українською)</label>
+        <input type="text" id="regName" placeholder="Коваль Марія">
+        <div class="hint">Тільки українські літери, пробіл, апостроф</div>
+      </div>
+      <div class="fg">
+        <label>Електронна адреса</label>
+        <input type="email" id="regEmail" placeholder="your@email.com">
+        <div class="hint" id="regEmailHint">Має бути у списку дозволених від вчителя</div>
+      </div>
+      <div class="fg">
+        <label>Пароль (мін. 6 символів)</label>
+        <input type="password" id="regPass" placeholder="••••••••">
+      </div>
+      <div class="fg" id="teacherCodeField" style="display:none;">
+        <label>Код доступу вчителя</label>
+        <input type="text" id="regCode" placeholder="Унікальний код...">
+        <div class="hint">Отримайте код у адміністратора</div>
+      </div>
+      <div class="auth-err" id="registerErr"></div>
+      <div class="auth-success" id="registerOk"></div>
+      <button class="btn btn-primary btn-block" id="registerBtn" onclick="doRegister()">Зареєструватися</button>
+      <div style="text-align:center;margin-top:.75rem;">
+        <button class="link-btn" onclick="switchMode('login')">Вже є акаунт? Увійти</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ APP ══════════ -->
+<div id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo"><div class="dot"></div>ІсторіяПРО</div>
+    <div class="sb-user">
+      <div class="sb-av" id="sbAv">??</div>
+      <div>
+        <div class="sb-uname" id="sbName">—</div>
+        <div class="sb-urole" id="sbRole">—</div>
+      </div>
+    </div>
+
+    <!-- TEACHER NAV -->
+    <div id="navTeacher" style="display:none;">
+      <div class="sb-section">Меню</div>
+      <div class="sb-item" onclick="showPage('dashPage')">🏠 Головна</div>
+      <div class="sb-item" onclick="showPage('notifsPage')">🔔 Повідомлення <span class="sbi-badge" id="notifBadge">0</span></div>
+      <div class="sb-item" onclick="showPage('testsTeacherPage')">📝 Тести</div>
+      <div class="sb-item" onclick="showPage('hwTeacherPage')">📬 Домашні завдання</div>
+      <div class="sb-item" onclick="showPage('topicsManagePage')">⚙️ Управління темами</div>
+      <div class="sb-item" onclick="showPage('studentsPage')">👥 Учні та доступи</div>
+      <div class="sb-section">Активні теми</div>
+      <div class="sb-topics" id="sbTopicsTeacher"></div>
+    </div>
+
+    <!-- STUDENT NAV -->
+    <div id="navStudent" style="display:none;">
+      <div class="sb-section">Меню</div>
+      <div class="sb-item" onclick="showPage('dashPage')">🏠 Головна</div>
+      <div class="sb-item" onclick="showPage('myTestsPage')">📝 Мої тести</div>
+      <div class="sb-item" onclick="showPage('myHwPage')">📬 Домашні завдання</div>
+      <div class="sb-section">Теми</div>
+      <div class="sb-topics" id="sbTopicsStudent"></div>
+    </div>
+
+    <div class="sb-progress" id="sbProgress"></div>
+    <div style="padding:.7rem 1.1rem;">
+      <div class="sb-item" onclick="doLogout()" style="color:var(--danger);">🚪 Вийти</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title" id="topbarTitle">Головна</div>
+      <div id="roleBadge"></div>
+    </header>
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="dashPage">
+        <div class="dash-welcome" id="dashWelcome">Вітаємо!</div>
+        <div class="dash-sub" id="dashSub"></div>
+        <div id="teacherDash" style="display:none;">
+          <div class="stat-row" id="teacherStatRow"></div>
+          <div class="card"><div class="card-hdr"><h3>📬 Останні повідомлення</h3></div><div id="dashNotifs"></div></div>
+        </div>
+        <div id="studentDash" style="display:none;">
+          <div class="stat-row" id="studentStatRow"></div>
+          <div class="card"><div class="card-hdr"><h3>📊 Прогрес по темах</h3></div><div id="topicProgressList"></div></div>
+        </div>
+      </div>
+
+      <!-- TOPIC PAGE -->
+      <div class="page" id="topicPage">
+        <div style="font-family:var(--font-head);font-size:1.05rem;color:var(--primary-dark);margin-bottom:.22rem;" id="tpTitle"></div>
+        <div style="font-size:.8rem;color:var(--gray-400);margin-bottom:1.15rem;" id="tpSub"></div>
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab(this,'tabTheory')">📖 Теорія</div>
+          <div class="tab" onclick="switchTab(this,'tabPractice')">✏️ Практика</div>
+          <div class="tab" onclick="switchTab(this,'tabHw')">📬 ДЗ</div>
+        </div>
+        <div class="tab-content active" id="tabTheory">
+          <div class="card">
+            <div class="card-hdr"><h3>Теоретичний матеріал</h3><span class="badge badge-theory">Теорія</span></div>
+            <p id="theoryBody" style="font-size:.86rem;line-height:1.7;color:var(--gray-600);white-space:pre-line;"></p>
+            <hr class="div">
+            <div class="sec-hdr"><h2>Файли та презентації</h2><span id="theoryUploadBtn"></span></div>
+            <div id="theoryFileList"></div>
+            <div id="theoryDropArea" style="display:none;"></div>
+            <input type="file" id="theoryFileInput" style="display:none;" multiple onchange="handleUpload('theory',this)">
+          </div>
+        </div>
+        <div class="tab-content" id="tabPractice">
+          <div class="card">
+            <div class="card-hdr"><h3>Практичні завдання</h3><span class="badge badge-practice">Практика</span></div>
+            <p id="practiceBody" style="font-size:.86rem;line-height:1.7;color:var(--gray-600);white-space:pre-line;"></p>
+            <hr class="div">
+            <div id="practiceFileList"></div>
+            <div id="practiceDropArea" style="display:none;"></div>
+            <input type="file" id="practiceFileInput" style="display:none;" multiple onchange="handleUpload('practice',this)">
+          </div>
+        </div>
+        <div class="tab-content" id="tabHw">
+          <div class="card" id="hwCard"></div>
+        </div>
+      </div>
+
+      <!-- NOTIFICATIONS -->
+      <div class="page" id="notifsPage">
+        <div class="sec-hdr"><h2>🔔 Повідомлення від учнів</h2></div>
+        <div id="allNotifList"></div>
+      </div>
+
+      <!-- TESTS TEACHER -->
+      <div class="page" id="testsTeacherPage">
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab(this,'tabTList')">📋 Тести</div>
+          <div class="tab" onclick="switchTab(this,'tabTCreate');buildTestBuilder()">➕ Створити</div>
+          <div class="tab" onclick="switchTab(this,'tabTResults')">📊 Результати</div>
+        </div>
+        <div class="tab-content active" id="tabTList"><div id="teacherTestList"></div></div>
+        <div class="tab-content" id="tabTCreate"><div id="testBuilderDiv"></div></div>
+        <div class="tab-content" id="tabTResults"><div id="testResultsDiv"></div></div>
+      </div>
+
+      <!-- HW TEACHER -->
+      <div class="page" id="hwTeacherPage">
+        <div class="sec-hdr"><h2>📬 Перевірка домашніх завдань</h2></div>
+        <div id="hwTeacherList"></div>
+      </div>
+
+      <!-- TOPICS MANAGE -->
+      <div class="page" id="topicsManagePage">
+        <div class="sec-hdr">
+          <h2>⚙️ Управління темами (32 теми)</h2>
+          <span id="activeTopicsCount" class="tag tag-blue"></span>
+        </div>
+        <p style="font-size:.8rem;color:var(--gray-400);margin-bottom:1rem;">Активуйте теми — учні отримають доступ. Назву теми можна редагувати.</p>
+        <div id="topicMgmtList"></div>
+      </div>
+
+      <!-- STUDENTS MANAGE -->
+      <div class="page" id="studentsPage">
+        <div class="sec-hdr">
+          <h2>👥 Учні та доступи</h2>
+          <button class="btn btn-primary btn-sm" onclick="showModal('addStudentModal')">➕ Додати email учня</button>
+        </div>
+        <p style="font-size:.78rem;color:var(--gray-400);margin-bottom:.85rem;">Щоб учень зміг зареєструватися, його email має бути у цьому списку.</p>
+        <div id="studentsList"></div>
+      </div>
+
+      <!-- MY TESTS -->
+      <div class="page" id="myTestsPage">
+        <div class="sec-hdr"><h2>📝 Тести</h2></div>
+        <div id="studentTestList"></div>
+      </div>
+
+      <!-- MY HW -->
+      <div class="page" id="myHwPage">
+        <div class="sec-hdr"><h2>📬 Домашні завдання</h2></div>
+        <div id="studentHwList"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- TAKE TEST OVERLAY -->
+<div id="takeTest">
+  <div class="tt-layout">
+    <div class="tt-sidebar" id="ttSidebar"><div class="tt-sidebar-title">№</div></div>
+    <div class="tt-main">
+      <div class="tt-header" id="ttHeader"></div>
+      <div id="ttQuestions"></div>
+      <div id="ttFooter" style="margin-top:1.35rem;text-align:center;padding-bottom:2rem;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD STUDENT EMAIL MODAL -->
+<div class="modal-overlay" id="addStudentModal">
+  <div class="modal-box">
+    <div class="modal-title">Додати email учня до дозволених</div>
+    <div class="form-group">
+      <label>Електронна адреса учня</label>
+      <input type="email" id="newStudentEmail" placeholder="student@gmail.com">
+    </div>
+    <div class="auth-err" id="addStudentErr"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('addStudentModal')">Скасувати</button>
+      <button class="btn btn-primary" onclick="addAllowedStudent()">Додати</button>
+    </div>
+  </div>
+</div>
+<script>
+// ═══════════════════════════════════════════════════════
+//  ⚙️ SUPABASE CONFIG — замініть на свої значення!
+// ═══════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://jltsznqsxhdgnwahpwxg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsdHN6bnFzeGhkZ253YWhwd3hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2ODM3MzgsImV4cCI6MjA5NjI1OTczOH0.L0zL-VddyAfS2UVzyEeuzTOwlPs_3WUQgL_B3fPk_jo';
+const TEACHER_INVITE_CODE = 'TEACHER2024'; // код для реєстрації вчителя (зберігається у БД)
+
+// ═══════════════════════════════════════════════════════
+//  SUPABASE INIT
+// ═══════════════════════════════════════════════════════
+let sb = null;
+let isSbConfigured = false;
+
+try {
+  if(SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY'){
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    isSbConfigured = true;
+  }
+} catch(e){ console.warn('Supabase init error:', e); }
+
+// ═══════════════════════════════════════════════════════
+//  APP STATE
+// ═══════════════════════════════════════════════════════
+let currentUser = null;   // {id, email, full_name, role}
+let currentRole = 'student'; // selected in auth tabs
+let currentMode = 'login';   // login | register
+let currentTopicId = null;
+let activeTest = null;
+let ttAnswers = {};
+let ttSaved = {};
+let testFinished = false;
+
+// Local state (synced from Supabase or in-memory demo fallback)
+let allowedStudents = []; // [{email}]
+let registeredProfiles = []; // profiles from DB
+let notifications = [];
+let tests = [];
+let testResults = []; // [{student_email, student_name, test_id, score, max_score, date, attempts}]
+let uploadedFiles = {};
+let hwByTopic = {};
+let studentHwSubs = {};
+let myHwSubmitted = {};
+
+// 32 topics definition
+const ALL_TOPICS_DEF = [
+  {id:'t01',defTitle:'Давня Україна. Трипільська культура'},{id:'t02',defTitle:'Кіммерійці, скіфи, сармати'},
+  {id:'t03',defTitle:'Античні міста-держави Причорномор\'я'},{id:'t04',defTitle:'Велике переселення народів. Слов\'яни'},
+  {id:'t05',defTitle:'Київська Русь. Утворення та розквіт'},{id:'t06',defTitle:'Київська Русь. Роздробленість і занепад'},
+  {id:'t07',defTitle:'Галицько-Волинська держава'},{id:'t08',defTitle:'Українські землі у складі Литви та Польщі'},
+  {id:'t09',defTitle:'Виникнення козацтва. Запорізька Січ'},{id:'t10',defTitle:'Козацькі повстання кін. XVI — поч. XVII ст.'},
+  {id:'t11',defTitle:'Національно-визвольна війна. Хмельниччина'},{id:'t12',defTitle:'Гетьманщина. Руїна'},
+  {id:'t13',defTitle:'Гетьманщина за Мазепи. Полтавська битва'},{id:'t14',defTitle:'Ліквідація Гетьманщини. XVIII ст.'},
+  {id:'t15',defTitle:'Гайдамацький і опришківський рухи'},{id:'t16',defTitle:'Українські землі наприкінці XVIII ст.'},
+  {id:'t17',defTitle:'Українське відродження. XIX ст.'},{id:'t18',defTitle:'Кирило-Мефодіївське братство. Шевченко'},
+  {id:'t19',defTitle:'Реформи 1860–70-х рр.'},{id:'t20',defTitle:'Емський указ. Народовство'},
+  {id:'t21',defTitle:'Початок XX ст. Революція 1905–1907'},{id:'t22',defTitle:'Перша світова війна та Україна'},
+  {id:'t23',defTitle:'Українська революція. Центральна Рада'},{id:'t24',defTitle:'Гетьманат П. Скоропадського'},
+  {id:'t25',defTitle:'Директорія УНР та ЗУНР'},{id:'t26',defTitle:'Радянська Україна 1920-х. НЕП. Українізація'},
+  {id:'t27',defTitle:'Голодомор 1932–1933 рр.'},{id:'t28',defTitle:'Сталінський терор. Друга світова війна'},
+  {id:'t29',defTitle:'Повоєнна Україна. Хрущовська відлига'},{id:'t30',defTitle:'Застій і дисидентський рух'},
+  {id:'t31',defTitle:'Перебудова. Розпад СРСР. Незалежність'},{id:'t32',defTitle:'Незалежна Україна 1991–2022'},
+];
+let topicState = {};
+ALL_TOPICS_DEF.forEach(t=>{ topicState[t.id]={active:false,title:t.defTitle}; });
+
+const TOPIC_THEORY = {
+  t05:'Київська Русь — середньовічна держава (кін. IX — поч. XIII ст.). Утворена варягами, столиця — Київ. Розквіт за Ярослава Мудрого (1019–1054). Прийняття християнства 988 р. «Руська правда» — звід законів.',
+  t11:'Національно-визвольна війна 1648–1657 рр. під проводом Богдана Хмельницького. Перемоги: Жовті Води, Корсунь, Батіг. Переяславська угода 1654 р. Утворення Гетьманщини.',
+  t23:'Лютнева революція 1917 р. → Центральна Рада (М. Грушевський). I–IV Універсали. Проголошення УНР 22.01.1918. Гетьманат Скоропадського.',
+};
+const TOPIC_PRACTICE = {
+  t05:'1. Складіть хронологію правителів Київської Русі.\n2. Порівняйте правління Ярослава Мудрого і Мономаха.\n3. Охарактеризуйте «Руську правду».',
+  t11:'1. Охарактеризуйте причини і наслідки Хмельниччини.\n2. Таблиця битв 1648–1651.\n3. Значення Переяславської угоди.',
+  t23:'1. Діяльність Центральної Ради.\n2. Таблиця «Форми держави 1917–1921».\n3. Порівняйте УНР та ЗУНР.',
+};
+
+// ═══════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async ()=>{
+  tests = [buildTest1()];
+
+  if(!isSbConfigured){
+    // Demo mode — no Supabase
+    document.getElementById('loadingScreen').style.display='none';
+    document.getElementById('configBanner').classList.add('show');
+    document.getElementById('authScreen').classList.add('show');
+    return;
+  }
+
+  // Check existing session
+  try {
+    const {data:{session}} = await sb.auth.getSession();
+    if(session){
+      await loadUserProfile(session.user);
+    } else {
+      showAuthScreen();
+    }
+  } catch(e){
+    showAuthScreen();
+  }
+
+  // Listen for auth changes
+  sb.auth.onAuthStateChange(async (event, session)=>{
+    if(event==='SIGNED_IN' && session){
+      await loadUserProfile(session.user);
+    } else if(event==='SIGNED_OUT'){
+      currentUser=null;
+      document.getElementById('app').classList?.remove('show');
+      document.getElementById('app').style.display='none';
+      showAuthScreen();
+    }
+  });
+});
+
+function showAuthScreen(){
+  document.getElementById('loadingScreen').style.display='none';
+  document.getElementById('authScreen').classList.add('show');
+}
+
+async function loadUserProfile(authUser){
+  try {
+    // Спочатку шукаємо в таблиці teachers
+    const {data:teacher} = await sb
+      .from('teachers')
+      .select('*')
+      .eq('email', authUser.email)
+      .single();
+
+    if(teacher){
+      currentUser = {
+        id: authUser.id,
+        email: authUser.email,
+        full_name: (teacher.first_name||'') + (teacher.last_name ? ' '+teacher.last_name : ''),
+        role: 'teacher',
+      };
+      document.getElementById('loadingScreen').style.display='none';
+      await startApp();
+      return;
+    }
+
+    // Якщо не вчитель — шукаємо в таблиці students
+    const {data:student} = await sb
+      .from('students')
+      .select('*')
+      .eq('email', authUser.email)
+      .single();
+
+    if(student){
+      currentUser = {
+        id: authUser.id,
+        email: authUser.email,
+        full_name: (student.first_name||'') + (student.last_name ? ' '+student.last_name : ''),
+        role: 'student',
+        teacher_id: student.teacher_id,
+      };
+      document.getElementById('loadingScreen').style.display='none';
+      await startApp();
+      return;
+    }
+
+    // Профіль не знайдено
+    document.getElementById('loadingScreen').style.display='none';
+    showAuthScreen();
+  } catch(e){
+    document.getElementById('loadingScreen').style.display='none';
+    showAuthScreen();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  AUTH UI
+// ═══════════════════════════════════════════════════════
+function switchRole(role){
+  currentRole=role;
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',i===(role==='student'?0:1)));
+  document.getElementById('loginTitle').textContent=role==='student'?'Вхід як Учень':'Вхід як Вчитель';
+  document.getElementById('registerTitle').textContent=role==='student'?'Реєстрація Учня':'Реєстрація Вчителя';
+  document.getElementById('regEmailHint').textContent=role==='student'?'Має бути у списку дозволених від вчителя':'Службова адреса вчителя';
+  document.getElementById('teacherCodeField').style.display=role==='teacher'?'block':'none';
+  // Hide register for teacher if you want — keep open
+  document.getElementById('modeTabs').style.display='flex';
+}
+function switchMode(mode){
+  currentMode=mode;
+  document.querySelectorAll('.auth-mode-tab').forEach((t,i)=>t.classList.toggle('active',i===(mode==='login'?0:1)));
+  document.getElementById('loginForm').style.display=mode==='login'?'block':'none';
+  document.getElementById('registerForm').style.display=mode==='register'?'block':'none';
+}
+
+function ukrNameValid(v){return /^[А-ЯҐЄІЇа-яґєії'\s\-]{3,}$/.test(v.trim());}
+
+// ── LOGIN ──
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const errEl=document.getElementById('loginErr');
+  if(!email||!pass){errEl.textContent='Заповніть всі поля';return;}
+  errEl.textContent='';
+
+  if(!isSbConfigured){
+    // Demo fallback
+    demoLogin(email, pass); return;
+  }
+
+  const btn=document.getElementById('loginBtn');
+  btn.disabled=true; btn.textContent='Вхід...';
+  try {
+    const {data, error} = await sb.auth.signInWithPassword({email,password:pass});
+    if(error) throw error;
+    // Profile loaded via onAuthStateChange
+  } catch(e){
+    errEl.textContent = e.message==='Invalid login credentials'?'Невірна пошта або пароль':e.message;
+    btn.disabled=false; btn.textContent='Увійти';
+  }
+}
+
+// ── REGISTER ──
+async function doRegister(){
+  const name=document.getElementById('regName').value.trim();
+  const email=document.getElementById('regEmail').value.trim();
+  const pass=document.getElementById('regPass').value;
+  const code=document.getElementById('regCode').value.trim();
+  const errEl=document.getElementById('registerErr');
+  const okEl=document.getElementById('registerOk');
+  errEl.textContent=''; okEl.textContent='';
+
+  if(!name||!email||!pass){errEl.textContent='Заповніть всі поля';return;}
+  if(!ukrNameValid(name)){errEl.textContent='Ім\'я — тільки українські літери';return;}
+  if(pass.length<6){errEl.textContent='Пароль — мінімум 6 символів';return;}
+
+  if(!isSbConfigured){
+    demoRegister(name,email,pass,code); return;
+  }
+
+  const btn=document.getElementById('registerBtn');
+  btn.disabled=true; btn.textContent='Реєстрація...';
+
+  try {
+    // Розбиваємо ім'я на first_name та last_name
+    const nameParts = name.trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    if(currentRole==='teacher'){
+      // Перевіряємо код вчителя в таблиці teacher_codes
+      const {data:codeData} = await sb.from('teacher_codes').select('*').eq('code',code).eq('used',false).single();
+      if(!codeData){errEl.textContent='Невірний або вже використаний код вчителя';btn.disabled=false;btn.textContent='Зареєструватися';return;}
+
+      // Реєструємо через Supabase Auth
+      const {data, error} = await sb.auth.signUp({email, password:pass});
+      if(error) throw error;
+
+      // Створюємо запис у таблиці teachers
+      await sb.from('teachers').insert({
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        teacher_code: code,
+      });
+
+      // Позначаємо код як використаний
+      await sb.from('teacher_codes').update({used:true}).eq('code',code);
+
+    } else {
+      // Перевіряємо дозволений список
+      const {data:allowed} = await sb.from('allowed_students').select('email').eq('email',email).single();
+      if(!allowed){errEl.textContent='Ваш email не у списку дозволених. Зверніться до вчителя.';btn.disabled=false;btn.textContent='Зареєструватися';return;}
+
+      // Реєструємо через Supabase Auth
+      const {data, error} = await sb.auth.signUp({email, password:pass});
+      if(error) throw error;
+
+      // Оновлюємо або створюємо запис у таблиці students
+      const {data:existStu} = await sb.from('students').select('id').eq('email',email).single();
+      if(existStu){
+        await sb.from('students').update({
+          first_name: firstName,
+          last_name: lastName,
+          is_registered: true,
+        }).eq('email',email);
+      } else {
+        await sb.from('students').insert({
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          is_registered: true,
+        });
+      }
+    }
+
+    okEl.textContent='✅ Реєстрація успішна! Перевірте email або увійдіть.';
+    setTimeout(()=>switchMode('login'),2500);
+  } catch(e){
+    errEl.textContent=e.message;
+  } finally {
+    btn.disabled=false; btn.textContent='Зареєструватися';
+  }
+}
+
+// ── LOGOUT ──
+async function doLogout(){
+  if(isSbConfigured){ await sb.auth.signOut(); }
+  else {
+    currentUser=null;
+    document.getElementById('app').style.display='none';
+    document.getElementById('authScreen').classList.add('show');
+  }
+}
+
+// ── DEMO FALLBACK (no Supabase) ──
+const DEMO_USERS = [
+  {id:'t1',email:'teacher@school.ua',pass:'teach2024',full_name:'Ольга Петрівна',role:'teacher'},
+  {id:'s1',email:'demo@student.ua',pass:'pass123',full_name:'Коваль Марія',role:'student'},
+  {id:'s2',email:'melnyk@student.ua',pass:'pass123',full_name:'Мельник Олег',role:'student'},
+];
+let demoAllowed=[{email:'demo@student.ua'},{email:'melnyk@student.ua'}];
+function demoLogin(email,pass){
+  const u=DEMO_USERS.find(x=>x.email===email&&x.pass===pass);
+  if(!u){document.getElementById('loginErr').textContent='Невірна пошта або пароль';return;}
+  currentUser={...u};
+  document.getElementById('authScreen').classList.remove('show');
+  startApp();
+}
+function demoRegister(name,email,pass,code){
+  const okEl=document.getElementById('registerOk');
+  const errEl=document.getElementById('registerErr');
+  if(currentRole==='teacher'&&code!==TEACHER_INVITE_CODE){errEl.textContent='Невірний код вчителя';return;}
+  if(currentRole==='student'&&!demoAllowed.find(x=>x.email===email)){errEl.textContent='Email не у списку дозволених';return;}
+  DEMO_USERS.push({id:'u'+Date.now(),email,pass,full_name:name,role:currentRole});
+  okEl.textContent='✅ Зареєстровано! Тепер увійдіть.';
+  setTimeout(()=>switchMode('login'),2000);
+}
+
+// ═══════════════════════════════════════════════════════
+//  APP START
+// ═══════════════════════════════════════════════════════
+async function startApp(){
+  document.getElementById('authScreen').classList.remove('show');
+  document.getElementById('app').style.display='flex';
+
+  if(isSbConfigured){ await syncFromSupabase(); }
+  else {
+    allowedStudents=demoAllowed;
+    registeredProfiles=DEMO_USERS;
+    notifications=[
+      {id:'n1',from:'Коваль Марія',av:'КМ',text:'Здала ДЗ з теми "Козацька доба"',type:'hw',time:'10 хв тому',read:false},
+      {id:'n2',from:'Мельник Олег',av:'МО',text:'Пройшов тест — Бал: 24/30',type:'test',time:'30 хв тому',read:false},
+    ];
+    // activate demo topics
+    ['t05','t11','t23'].forEach(id=>topicState[id].active=true);
+  }
+
+  setupInterface();
+}
+
+async function syncFromSupabase(){
+  if(!isSbConfigured) return;
+  try {
+    // Завантажуємо список дозволених учнів
+    const {data:as}=await sb.from('allowed_students').select('email');
+    if(as) allowedStudents=as;
+
+    // Вчитель бачить усіх зареєстрованих учнів
+    if(currentUser.role==='teacher'){
+      const {data:studs}=await sb.from('students').select('*');
+      if(studs){
+        registeredProfiles = studs.map(s=>({
+          id: s.id,
+          email: s.email,
+          full_name: (s.first_name||'') + (s.last_name ? ' '+s.last_name : ''),
+          role: 'student',
+          is_registered: s.is_registered,
+          teacher_id: s.teacher_id,
+        }));
+      }
+    }
+  } catch(e){ console.warn('Sync error:',e); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  SETUP INTERFACE
+// ═══════════════════════════════════════════════════════
+function setupInterface(){
+  const isT=currentUser.role==='teacher';
+  document.getElementById('navTeacher').style.display=isT?'block':'none';
+  document.getElementById('navStudent').style.display=isT?'none':'block';
+  document.getElementById('teacherDash').style.display=isT?'block':'none';
+  document.getElementById('studentDash').style.display=isT?'none':'block';
+  document.getElementById('roleBadge').innerHTML=isT?'<span class="tag tag-blue">📚 Вчитель</span>':'<span class="tag tag-green">🎓 Учень</span>';
+  const nm=currentUser.full_name||currentUser.name||'Користувач';
+  const av=nm.split(' ').map(p=>p[0]).join('').toUpperCase().substring(0,2);
+  document.getElementById('sbAv').textContent=av;
+  document.getElementById('sbName').textContent=nm;
+  document.getElementById('sbRole').textContent=isT?'Вчитель':'Учень';
+  document.getElementById('dashWelcome').textContent=`Вітаємо, ${nm.split(' ')[0]}!`;
+  document.getElementById('dashSub').textContent=isT?'Керуйте навчальним процесом':'Обирайте тему та готуйтесь до НМТ';
+  buildSidebarTopics();
+  buildDashContent();
+  buildTopicManagePage();
+  buildStudentsList();
+  buildTeacherTestList();
+  buildStudentTestList();
+  buildHwTeacherList();
+  buildStudentHwList();
+  buildTestResultsDiv();
+  updateNotifBadge();
+  showPage('dashPage');
+}
+
+// ═══════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════
+function showPage(pageId){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  const t={dashPage:'Головна',topicPage:'Тема',notifsPage:'Повідомлення',testsTeacherPage:'Тести',
+    hwTeacherPage:'Домашні завдання',topicsManagePage:'Управління темами',studentsPage:'Учні та доступи',
+    myTestsPage:'Мої тести',myHwPage:'Домашні завдання'};
+  document.getElementById('topbarTitle').textContent=t[pageId]||pageId;
+  if(pageId==='notifsPage') buildAllNotifs();
+}
+function switchTab(el,cid){
+  const par=el.closest('.tabs').parentElement;
+  par.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  par.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  par.querySelector('#'+cid)?.classList.add('active');
+}
+function showModal(id){document.getElementById(id).classList.add('show');}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+
+// ═══════════════════════════════════════════════════════
+//  SIDEBAR TOPICS
+// ═══════════════════════════════════════════════════════
+function activeTopics(){return ALL_TOPICS_DEF.filter(t=>topicState[t.id].active);}
+function buildSidebarTopics(){
+  const isT=currentUser.role==='teacher';
+  const list=isT?ALL_TOPICS_DEF.filter(t=>topicState[t.id].active):activeTopics();
+  const cont=document.getElementById(isT?'sbTopicsTeacher':'sbTopicsStudent');
+  cont.innerHTML='';
+  list.forEach((t,i)=>{
+    const grp=document.createElement('div');grp.className='tp-group';grp.id='tpg_'+t.id;
+    grp.innerHTML=`<div class="tp-hdr" id="tph_${t.id}" onclick="toggleTopic('${t.id}')"><span class="tp-arrow">▶</span><span style="flex:1;">${i+1}. ${topicState[t.id].title}</span></div>
+    <div class="tp-subs" id="tps_${t.id}">
+      <div class="tp-sub theory" onclick="openTopic('${t.id}','theory')"><span class="tsd"></span>Теорія</div>
+      <div class="tp-sub practice" onclick="openTopic('${t.id}','practice')"><span class="tsd"></span>Практика</div>
+      <div class="tp-sub" onclick="openTopic('${t.id}','hw')"><span class="tsd"></span>${isT?'Завантажити ДЗ':'Здати ДЗ'}</div>
+    </div>`;
+    cont.appendChild(grp);
+  });
+  document.getElementById('sbProgress').textContent=`Відкрито тем: ${activeTopics().length} з 32`;
+}
+function toggleTopic(id){
+  const hdr=document.getElementById('tph_'+id);
+  const subs=document.getElementById('tps_'+id);
+  const isOpen=hdr.classList.contains('open');
+  document.querySelectorAll('.tp-hdr.open').forEach(h=>{h.classList.remove('open');h.nextElementSibling.classList.remove('open');});
+  if(!isOpen){hdr.classList.add('open');subs.classList.add('open');}
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOPIC PAGE
+// ═══════════════════════════════════════════════════════
+function openTopic(topicId,tab){
+  currentTopicId=topicId;
+  const st=topicState[topicId];
+  const def=ALL_TOPICS_DEF.find(t=>t.id===topicId);
+  document.getElementById('tpTitle').textContent=st.title;
+  document.getElementById('tpSub').textContent=def.defTitle;
+  document.getElementById('theoryBody').textContent=TOPIC_THEORY[topicId]||'Теоретичний матеріал буде додано вчителем.';
+  document.getElementById('practiceBody').textContent=TOPIC_PRACTICE[topicId]||'Практичні завдання буде додано вчителем.';
+  const isT=currentUser.role==='teacher';
+  document.getElementById('theoryUploadBtn').innerHTML=isT?`<button class="btn btn-primary btn-sm" onclick="document.getElementById('theoryFileInput').click()">📎 Додати</button>`:'';
+  document.getElementById('theoryDropArea').style.display=isT?'block':'none';
+  document.getElementById('practiceDropArea').style.display=isT?'block':'none';
+  if(isT){
+    document.getElementById('theoryDropArea').innerHTML=`<div class="file-drop" onclick="document.getElementById('theoryFileInput').click()"><p>📎 <strong>Завантажити файл</strong> (PDF, PPTX, зображення)</p></div>`;
+    document.getElementById('practiceDropArea').innerHTML=`<div class="file-drop" onclick="document.getElementById('practiceFileInput').click()"><p>📎 <strong>Завантажити матеріали</strong></p></div>`;
+  }
+  renderFiles('theory',topicId); renderFiles('practice',topicId); renderHwTab(topicId);
+  showPage('topicPage');
+  const tabs=document.getElementById('topicPage').querySelectorAll('.tab');
+  const contents=document.getElementById('topicPage').querySelectorAll('.tab-content');
+  tabs.forEach(t=>t.classList.remove('active')); contents.forEach(c=>c.classList.remove('active'));
+  const idx={theory:0,practice:1,hw:2}[tab]||0;
+  tabs[idx]?.classList.add('active'); contents[idx]?.classList.add('active');
+}
+function renderFiles(type,topicId){
+  const key=topicId+'_'+type;
+  const files=uploadedFiles[key]||[];
+  const cont=document.getElementById(type+'FileList');
+  if(!cont)return;
+  cont.innerHTML=files.length?files.map((f,i)=>`<div class="file-item"><span>📄</span><span class="fi-name">${f.name}</span><span class="fi-size">${f.size}</span>${currentUser.role==='teacher'?`<span class="fi-del" onclick="removeFile('${key}',${i})">✕</span>`:''}</div>`).join(''):'<p style="font-size:.78rem;color:var(--gray-300);">Файлів немає.</p>';
+}
+function handleUpload(type,input){
+  const key=currentTopicId+'_'+type;
+  if(!uploadedFiles[key]) uploadedFiles[key]=[];
+  Array.from(input.files).forEach(f=>uploadedFiles[key].push({name:f.name,size:fmtSize(f.size)}));
+  renderFiles(type,currentTopicId); input.value='';
+}
+function removeFile(key,i){uploadedFiles[key].splice(i,1); const t=key.includes('theory')?'theory':'practice'; renderFiles(t,currentTopicId);}
+function fmtSize(b){return b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB';}
+
+// ═══════════════════════════════════════════════════════
+//  HW TAB
+// ═══════════════════════════════════════════════════════
+function renderHwTab(topicId){
+  const isT=currentUser.role==='teacher';
+  const cont=document.getElementById('hwCard');
+  const st=topicState[topicId];
+  const hwFiles=hwByTopic[topicId]||[];
+  if(isT){
+    const subs=studentHwSubs[topicId]||[];
+    cont.innerHTML=`<div class="card-hdr"><h3>ДЗ — ${st.title}</h3><span class="badge badge-hw">ДЗ</span></div>
+    <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.6rem;">📥 PDF для учнів</h4>
+    <div class="file-drop" onclick="document.getElementById('hwTeacherInput').click()"><p>📎 <strong>Завантажити PDF</strong> домашнього завдання</p></div>
+    <input type="file" id="hwTeacherInput" style="display:none;" accept=".pdf" onchange="uploadHwTeacher('${topicId}',this)">
+    <div style="margin-top:.6rem;">${hwFiles.map((f,i)=>`<div class="file-item"><span>📄</span><span class="fi-name">${f.name}</span><span class="fi-size">${f.size}</span><span class="fi-del" onclick="removeHwFile('${topicId}',${i})">✕</span></div>`).join('')}</div>
+    <hr class="div">
+    <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.6rem;">📬 Роботи учнів (${subs.length})</h4>
+    ${subs.length===0?'<div class="empty"><div class="ei">📭</div><p>Немає зданих робіт</p></div>':
+    subs.map((s,i)=>`<div style="border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:.82rem;margin-bottom:.6rem;">
+      <div style="font-weight:700;font-size:.83rem;">${s.studentName}</div>
+      <div style="font-size:.76rem;color:var(--gray-400);margin:.18rem 0 .45rem;">📎 <a href="#" style="color:var(--primary);">${s.file}</a></div>
+      ${s.comment?`<p style="font-size:.76rem;font-style:italic;color:var(--gray-500);">"${s.comment}"</p>`:''}
+      <div style="display:flex;gap:.45rem;align-items:center;margin-top:.55rem;">
+        <input type="number" min="0" max="12" placeholder="Оцінка" id="g_${topicId}_${i}" value="${s.grade||''}" style="width:78px;padding:.35rem .48rem;border:1.5px solid var(--gray-200);border-radius:7px;font-size:.83rem;text-align:center;">
+        <textarea style="flex:1;padding:.32rem .58rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.78rem;resize:none;height:34px;" id="tc_${topicId}_${i}" placeholder="Коментар...">${s.teacherComment||''}</textarea>
+        <button class="btn btn-success btn-sm" onclick="saveGrade('${topicId}',${i})">✓</button>
+      </div>
+      ${s.grade!=null?`<div class="result-box" style="margin-top:.45rem;">✅ Оцінено: <strong>${s.grade}</strong> — ${s.teacherComment||'без коментаря'}</div>`:''}
+    </div>`).join('')}`;
+  } else {
+    const submitted=myHwSubmitted[topicId];
+    const myR=(studentHwSubs[topicId]||[]).find(s=>s.studentEmail===currentUser.email);
+    cont.innerHTML=`<div class="card-hdr"><h3>ДЗ — ${st.title}</h3><span class="badge badge-hw">ДЗ</span></div>
+    ${hwFiles.length?`<h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.45rem;">📄 Файл від вчителя</h4>${hwFiles.map(f=>`<div class="file-item"><span>📄</span><span class="fi-name">${f.name}</span><span style="color:var(--primary);font-size:.73rem;">⬇ Завантажити</span></div>`).join('')}<hr class="div">`:''}
+    <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.6rem;">📤 Здати виконане завдання</h4>
+    ${submitted?`<div class="file-item"><span>✅</span><span class="fi-name">${submitted}</span><span style="color:var(--success);font-size:.75rem;">Здано</span></div>`:`
+    <div class="file-drop" onclick="document.getElementById('studentHwInput').click()"><p>📎 <strong>Прикріпити файл</strong> (фото, PDF, JPG, PNG)</p></div>
+    <input type="file" id="studentHwInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.heic" onchange="submitStudentHw('${topicId}',this)">`}
+    <hr class="div">
+    <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.45rem;">💬 Запитання вчителю</h4>
+    <textarea class="ta" id="stuComment_${topicId}" placeholder="Напишіть запитання або коментар..."></textarea>
+    <button class="btn btn-primary btn-sm" style="margin-top:.55rem;" onclick="sendStudentComment('${topicId}')">Надіслати</button>
+    ${myR&&myR.grade!=null?`<hr class="div"><div class="result-box">✅ Результат: <strong>Оцінка: ${myR.grade}</strong><br>${myR.teacherComment||''}</div>`:''}`;
+  }
+}
+function uploadHwTeacher(topicId,input){if(!hwByTopic[topicId])hwByTopic[topicId]=[];Array.from(input.files).forEach(f=>hwByTopic[topicId].push({name:f.name,size:fmtSize(f.size)}));renderHwTab(topicId);input.value='';}
+function removeHwFile(topicId,i){hwByTopic[topicId].splice(i,1);renderHwTab(topicId);}
+function saveGrade(topicId,i){
+  const g=document.getElementById(`g_${topicId}_${i}`).value;
+  const c=document.getElementById(`tc_${topicId}_${i}`).value;
+  if(studentHwSubs[topicId]){studentHwSubs[topicId][i].grade=g;studentHwSubs[topicId][i].teacherComment=c;}
+  renderHwTab(topicId);buildHwTeacherList();
+}
+function submitStudentHw(topicId,input){
+  if(!input.files.length)return;
+  const f=input.files[0];
+  myHwSubmitted[topicId]=f.name;
+  if(!studentHwSubs[topicId])studentHwSubs[topicId]=[];
+  const nm=currentUser.full_name||currentUser.name;
+  studentHwSubs[topicId].push({studentName:nm,studentEmail:currentUser.email,av:getAv(nm),file:f.name,comment:'',grade:null,teacherComment:''});
+  addNotif(nm,getAv(nm),`Здав(ла) ДЗ з теми "${topicState[topicId].title}"`,'hw');
+  renderHwTab(topicId);buildStudentHwList();input.value='';
+}
+function sendStudentComment(topicId){
+  const txt=document.getElementById('stuComment_'+topicId)?.value?.trim();
+  if(!txt)return;
+  const nm=currentUser.full_name||currentUser.name;
+  addNotif(nm,getAv(nm),`Запитання: "${txt.substring(0,65)}"`,'question');
+  document.getElementById('stuComment_'+topicId).value='';
+  alert('✅ Повідомлення надіслано!');
+}
+function getAv(name){return (name||'??').split(' ').map(p=>p[0]).join('').toUpperCase().substring(0,2);}
+function addNotif(from,av,text,type){
+  notifications.unshift({id:'n'+Date.now(),from,av,text,type,time:'щойно',read:false});
+  buildDashContent();updateNotifBadge();
+}
+
+// ═══════════════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════════════
+function buildDashContent(){
+  const isT=currentUser.role==='teacher';
+  if(isT){
+    const regCount=isSbConfigured?registeredProfiles.filter(p=>p.role==='student').length:DEMO_USERS.filter(u=>u.role==='student').length;
+    document.getElementById('teacherStatRow').innerHTML=`
+      <div class="stat-card"><div class="stat-num">${regCount}</div><div class="stat-lbl">Зареєстровано учнів</div></div>
+      <div class="stat-card"><div class="stat-num">${allowedStudents.length}</div><div class="stat-lbl">Дозволених email</div></div>
+      <div class="stat-card"><div class="stat-num">${activeTopics().length}/32</div><div class="stat-lbl">Активних тем</div></div>
+      <div class="stat-card"><div class="stat-num">${notifications.filter(n=>!n.read).length}</div><div class="stat-lbl">Нових повідомлень</div></div>`;
+    document.getElementById('dashNotifs').innerHTML=notifications.slice(0,4).map(n=>notifHtml(n)).join('')||'<div class="empty"><p>Немає повідомлень</p></div>';
+  } else {
+    const nm=currentUser.full_name||currentUser.name;
+    const myR=testResults.filter(r=>r.student_email===currentUser.email||r.studentEmail===currentUser.email);
+    const avg=myR.length?Math.round(myR.reduce((a,r)=>a+r.score/r.max_score*100,0)/myR.length):null;
+    document.getElementById('studentStatRow').innerHTML=`
+      <div class="stat-card"><div class="stat-num">${myR.length}</div><div class="stat-lbl">Пройдено тестів</div></div>
+      <div class="stat-card"><div class="stat-num">${avg!==null?avg+'%':'—'}</div><div class="stat-lbl">Середній результат</div></div>
+      <div class="stat-card"><div class="stat-num">${activeTopics().length}</div><div class="stat-lbl">Доступних тем</div></div>
+      <div class="stat-card"><div class="stat-num">${Object.keys(myHwSubmitted).length}</div><div class="stat-lbl">Зданих ДЗ</div></div>`;
+    document.getElementById('topicProgressList').innerHTML=activeTopics().map(t=>`
+      <div style="margin-bottom:.72rem;"><div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.26rem;"><span style="font-weight:700;">${topicState[t.id].title}</span><span style="color:var(--gray-400);">${myHwSubmitted[t.id]?'✅':'—'}</span></div><div class="pbar"><div class="pbar-fill" style="width:${myHwSubmitted[t.id]?100:0}%;"></div></div></div>`).join('')||'<div class="empty"><p>Немає доступних тем</p></div>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  NOTIFICATIONS
+// ═══════════════════════════════════════════════════════
+function updateNotifBadge(){
+  const c=notifications.filter(n=>!n.read).length;
+  const b=document.getElementById('notifBadge');
+  b.textContent=c||'';b.classList.toggle('show',c>0);
+}
+function buildAllNotifs(){
+  document.getElementById('allNotifList').innerHTML=notifications.map(n=>notifHtml(n)).join('')||'<div class="empty"><div class="ei">🔔</div><p>Немає повідомлень</p></div>';
+  notifications.forEach(n=>n.read=true);updateNotifBadge();
+}
+function notifHtml(n){
+  const icons={hw:'📬',test:'📝',question:'💬'};
+  return `<div class="notif-item ${n.read?'':'unread'}"><div class="notif-av">${n.av}</div><div><div class="notif-title">${n.from} ${icons[n.type]||''}</div><div class="notif-desc">${n.text}</div><div class="notif-time">${n.time}</div></div></div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOPIC MANAGEMENT
+// ═══════════════════════════════════════════════════════
+function buildTopicManagePage(){
+  if(currentUser.role!=='teacher')return;
+  document.getElementById('activeTopicsCount').textContent=`Активовано: ${activeTopics().length} з 32`;
+  document.getElementById('topicMgmtList').innerHTML=ALL_TOPICS_DEF.map((t,i)=>{
+    const st=topicState[t.id];
+    return `<div class="topic-mgmt-item">
+      <div class="tmi-num">${String(i+1).padStart(2,'0')}</div>
+      <div class="tmi-info">
+        <input class="tmi-name-input" id="tn_${t.id}" type="text" value="${st.title}" onblur="saveTopicTitle('${t.id}',this.value)" placeholder="Назва теми...">
+        <div class="tmi-status" style="color:${st.active?'var(--success)':'var(--gray-300)'};">${st.active?'✅ Активна — учні бачать':'🔒 Прихована'}</div>
+      </div>
+      <label class="toggle-sw"><input type="checkbox" ${st.active?'checked':''} onchange="toggleTopicActive('${t.id}',this.checked)"><span class="slider"></span></label>
+    </div>`;
+  }).join('');
+}
+function toggleTopicActive(id,v){topicState[id].active=v;buildTopicManagePage();buildSidebarTopics();buildDashContent();buildStudentHwList();buildStudentTestList();}
+function saveTopicTitle(id,v){if(v.trim())topicState[id].title=v.trim();buildSidebarTopics();buildTopicManagePage();}
+
+// ═══════════════════════════════════════════════════════
+//  STUDENTS (teacher manages allowed emails)
+// ═══════════════════════════════════════════════════════
+function buildStudentsList(){
+  if(currentUser.role!=='teacher')return;
+  const profiles=isSbConfigured?registeredProfiles.filter(p=>p.role==='student'):DEMO_USERS.filter(u=>u.role==='student');
+  document.getElementById('studentsList').innerHTML=`
+  <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.65rem;">✉️ Дозволені email (${allowedStudents.length})</h4>
+  ${allowedStudents.map((s,i)=>{
+    const prof=profiles.find(p=>p.email===s.email);
+    const myTests=testResults.filter(r=>r.studentEmail===s.email||r.student_email===s.email);
+    return `<div class="student-row">
+      <div class="stu-av">${prof?getAv(prof.full_name||prof.name):'?'}</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:.83rem;">${prof?(prof.full_name||prof.name):'Ще не зареєстрований'}</div>
+        <div style="font-size:.73rem;color:var(--gray-400);">${s.email}</div>
+        ${!prof?`<span class="pending-badge">⏳ Очікує реєстрації</span>`:''}
+        ${myTests.length?`<div style="margin-top:.3rem;">${myTests.map(r=>`<span class="tag tag-blue" style="font-size:.66rem;margin-right:.3rem;">${(tests.find(t=>t.id===r.testId||t.id===r.test_id)?.title||'Тест').substring(0,18)}: ${r.score}/${r.max_score||r.maxScore} (${r.attempts}x)</span>`).join('')}</div>`:''}
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="removeAllowedStudent(${i})">✕</button>
+    </div>`;
+  }).join('')||'<div class="empty"><div class="ei">✉️</div><p>Список порожній</p></div>'}`;
+}
+
+async function addAllowedStudent(){
+  const email=document.getElementById('newStudentEmail').value.trim();
+  const errEl=document.getElementById('addStudentErr');
+  if(!email){errEl.textContent='Введіть email';return;}
+  if(allowedStudents.find(s=>s.email===email)){errEl.textContent='Цей email вже є';return;}
+  errEl.textContent='';
+
+  if(isSbConfigured){
+    const {error}=await sb.from('allowed_students').insert({email,added_by:currentUser.id});
+    if(error){errEl.textContent=error.message;return;}
+    allowedStudents.push({email});
+  } else {
+    allowedStudents.push({email});
+    demoAllowed.push({email});
+  }
+  closeModal('addStudentModal');
+  document.getElementById('newStudentEmail').value='';
+  buildStudentsList();buildDashContent();
+}
+async function removeAllowedStudent(i){
+  if(!confirm('Видалити дозволений email?'))return;
+  const em=allowedStudents[i].email;
+  if(isSbConfigured){
+    await sb.from('allowed_students').delete().eq('email',em);
+  }
+  allowedStudents.splice(i,1);
+  const di=demoAllowed.findIndex(x=>x.email===em);
+  if(di>=0)demoAllowed.splice(di,1);
+  buildStudentsList();buildDashContent();
+}
+
+// ═══════════════════════════════════════════════════════
+//  HW LISTS
+// ═══════════════════════════════════════════════════════
+function buildHwTeacherList(){
+  if(currentUser.role!=='teacher')return;
+  let html='';
+  activeTopics().forEach(t=>{
+    const subs=studentHwSubs[t.id]||[];
+    if(!subs.length)return;
+    html+=`<h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin:.75rem 0 .45rem;">${topicState[t.id].title}</h4>`;
+    html+=subs.map((s,i)=>`<div class="student-row" style="flex-wrap:wrap;gap:.5rem;">
+      <div class="stu-av">${s.av||'??'}</div>
+      <div style="flex:1;"><div style="font-weight:700;font-size:.83rem;">${s.studentName}</div><div style="font-size:.73rem;color:var(--gray-400);">📎 ${s.file}</div></div>
+      ${s.grade!=null?`<span class="tag tag-green">Оцінка: ${s.grade}</span>`:`<button class="btn btn-primary btn-sm" onclick="openTopic('${t.id}','hw')">Оцінити</button>`}
+    </div>`).join('');
+  });
+  document.getElementById('hwTeacherList').innerHTML=html||'<div class="empty"><div class="ei">📭</div><p>Зданих робіт немає</p></div>';
+}
+function buildStudentHwList(){
+  if(currentUser.role!=='student')return;
+  document.getElementById('studentHwList').innerHTML=activeTopics().map(t=>`
+    <div class="test-li"><div class="tli-num">📚</div>
+    <div class="tli-info"><div class="tli-name">${topicState[t.id].title}</div><div class="tli-meta">${myHwSubmitted[t.id]?`✅ Здано: ${myHwSubmitted[t.id]}`:'⏳ Не здано'}</div></div>
+    <button class="btn btn-outline btn-sm" onclick="openTopic('${t.id}','hw')">Переглянути</button></div>`).join('')||'<div class="empty"><div class="ei">📭</div><p>Немає доступних тем</p></div>';
+}
+
+// ═══════════════════════════════════════════════════════
+//  TESTS
+// ═══════════════════════════════════════════════════════
+function buildTest1(){
+  const qs=[];
+  const sc=[
+    {q:'В якому році відбулося хрещення Київської Русі?',opts:['987','988','989','990'],correct:1},
+    {q:'Хто вважається засновником Київської Русі?',opts:['Аскольд','Олег','Рюрик','Кий'],correct:2},
+    {q:'Ярослав Мудрий правив у роки:',opts:['980–1015','1019–1054','1113–1125','997–1015'],correct:1},
+    {q:'«Руська правда» — це:',opts:['Літопис','Кодекс законів','Договір з Візантією','Поема'],correct:1},
+    {q:'Запорізька Січ розташовувалась:',opts:['На Дніпрі нижче порогів','На Дону','На Бузі','На Дністрі'],correct:0},
+    {q:'Богдан Хмельницький розпочав повстання у:',opts:['1645','1646','1648','1650'],correct:2},
+    {q:'Переяславська угода відбулась:',opts:['1654','1648','1657','1660'],correct:0},
+    {q:'Перший гетьман Запорізького Козацтва:',opts:['Дмитро Вишневецький','Богдан Хмельницький','Іван Підкова','Сагайдачний'],correct:0},
+    {q:'Столицею Гетьманщини спочатку був:',opts:['Київ','Батурин','Чигирин','Полтава'],correct:2},
+    {q:'Конотопська битва відбулась у:',opts:['1658','1659','1660','1661'],correct:1},
+    {q:'Іван Мазепа перейшов на бік Карла XII у:',opts:['1708','1709','1710','1707'],correct:0},
+    {q:'Полтавська битва відбулась:',opts:['1707','1708','1709','1710'],correct:2},
+    {q:'Зруйнування Запорізької Січі:',opts:['1775','1780','1770','1785'],correct:0},
+    {q:'Гадяцька угода підписана у:',opts:['1658','1657','1659','1660'],correct:0},
+    {q:'Коліївщина (1768) — це:',opts:['Гайдамацьке повстання','Польське повстання','Козацька рада','Реформа'],correct:0},
+    {q:'«Енеїда» Котляревського вийшла:',opts:['1798','1800','1795','1790'],correct:0},
+    {q:'Кирило-Мефодіївське братство:',opts:['1845','1850','1848','1840'],correct:0},
+    {q:'Скасування кріпацтва в Росії:',opts:['1861','1863','1860','1865'],correct:0},
+    {q:'Центральна Рада створена у:',opts:['1917','1918','1916','1919'],correct:0},
+    {q:'Акт незалежності України:',opts:['01.12.1991','24.08.1991','22.01.1990','16.07.1990'],correct:1},
+  ];
+  for(let i=0;i<20;i++){const d=sc[i];qs.push({type:'single',n:i+1,...d,explanation:`Правильна відповідь: «${d.opts[d.correct]}».`});}
+  const mData=[
+    {q:'Відповідність: гетьман — подія',left:['Богдан Хмельницький','Іван Мазепа','Пилип Орлик','Кирило Розумовський'],right:['Переяславська угода 1654','Полтавська битва 1709','Конституція 1710','Ліквідація Гетьманщини'],correct:[0,1,2,3],explanation:'Хмельницький→Переяслав; Мазепа→Полтава; Орлик→Конституція; Розумовський→Ліквідація'},
+    {q:'Відповідність: дата — подія',left:['988','1648','1709','1775'],right:['Хрещення Русі','Хмельниччина','Полтавська битва','Зруйнування Січі'],correct:[0,1,2,3],explanation:'988→Хрещення; 1648→Хмельниччина; 1709→Полтава; 1775→Зруйнування'},
+    {q:'Відповідність: особа — роль',left:['Ярослав Мудрий','Петро Могила','Іван Франко','Михайло Грушевський'],right:['«Руська правда»','Православна академія','Письменник-мислитель','Президент УНР'],correct:[0,1,2,3],explanation:'Ярослав→Правда; Могила→Академія; Франко→Мислитель; Грушевський→УНР'},
+    {q:'Відповідність: держава — лідер',left:['Центральна Рада','Гетьманат 1918','Директорія','ЗУНР'],right:['Грушевський','Скоропадський','Петлюра','Петрушевич'],correct:[0,1,2,3],explanation:'Рада→Грушевський; Гетьман→Скоропадський; Директорія→Петлюра; ЗУНР→Петрушевич'},
+  ];
+  for(let i=0;i<4;i++)qs.push({type:'match',n:21+i,...mData[i]});
+  const cData=[
+    {q:'Хронологічна послідовність подій',events:['Зруйнування Запорізької Січі','Хрещення Київської Русі','Початок Хмельниччини','Полтавська битва'],correct:[1,2,3,0],explanation:'988 → 1648 → 1709 → 1775'},
+    {q:'Хронологічна послідовність: держави',events:['Гетьманщина','Київська Русь','УНР','Запорізька Січ'],correct:[1,3,0,2],explanation:'Русь → Запорізька Січ → Гетьманщина → УНР'},
+    {q:'Послідовність подій XX ст.',events:['Голодомор 1932–33','Центральна Рада 1917','Незалежність 1991','Революція гідності 2013'],correct:[1,0,2,3],explanation:'1917 → 1932–33 → 1991 → 2013'},
+  ];
+  for(let i=0;i<3;i++)qs.push({type:'chrono',n:25+i,...cData[i]});
+  const oData=[
+    {q:'Вкажіть цифри подій, що відбулись у XVII столітті:',options:['Хрещення Русі (988)','Початок Хмельниччини (1648)','Переяславська угода (1654)','Зруйнування Січі (1775)','Гадяцька угода (1658)','Конотопська битва (1659)','Полтавська битва (1709)'],answers:['2','3','5','6'],explanation:'XVII ст.: 1648(2), 1654(3), 1658(5), 1659(6). Полтава — XVIII ст.'},
+    {q:'Вкажіть цифри гетьманів Лівобережної Гетьманщини:',options:['Михайло Грушевський','Іван Самойлович','Іван Мазепа','Симон Петлюра','Данило Апостол','Кирило Розумовський','Богдан Хмельницький'],answers:['2','3','5','6'],explanation:'Самойлович(2), Мазепа(3), Апостол(5), Розумовський(6)'},
+    {q:'Вкажіть три риси Переяславської угоди 1654 р.:',options:['Збереження козацьких прав','Повна незалежність','Антипольський союз','Рівноправний союз','Московський протекторат','Розширення реєстру','Скасування гетьманства'],answers:['1','3','6'],explanation:'Збереження прав(1), антипольський союз(3), розширення реєстру(6)'},
+  ];
+  for(let i=0;i<3;i++)qs.push({type:'open',n:28+i,...oData[i]});
+  return {id:'test1',title:'Тест №1 — Козацька доба та Київська Русь',questions:qs};
+}
+
+function buildTeacherTestList(){
+  if(currentUser.role!=='teacher')return;
+  document.getElementById('teacherTestList').innerHTML=tests.map((t,i)=>`
+    <div class="test-li"><div class="tli-num">0${i+1}</div>
+    <div class="tli-info"><div class="tli-name">${t.title}</div><div class="tli-meta">30 завдань · НМТ-формат</div></div>
+    <button class="btn btn-outline btn-sm" onclick="previewTest('${t.id}')">Переглянути</button></div>`).join('')+
+    `<div style="margin-top:.8rem;"><button class="btn btn-primary" onclick="switchTab(document.getElementById('testsTeacherPage').querySelectorAll('.tab')[1],'tabTCreate');buildTestBuilder()">➕ Новий тест</button></div>`;
+}
+
+function buildStudentTestList(){
+  if(currentUser.role!=='student')return;
+  document.getElementById('studentTestList').innerHTML=tests.map((t,i)=>{
+    const myR=testResults.filter(r=>(r.studentEmail||r.student_email)===currentUser.email&&(r.testId||r.test_id)===t.id);
+    const lastR=myR[myR.length-1];
+    const maxS=lastR?.max_score||lastR?.maxScore||30;
+    return `<div class="test-li"><div class="tli-num">0${i+1}</div>
+    <div class="tli-info"><div class="tli-name">${t.title}</div><div class="tli-meta">${lastR?`✅ Результат: ${lastR.score}/${maxS} · Спроб: ${myR.length}`:'⏳ Не пройдено · 30 завдань'}</div></div>
+    <button class="btn btn-primary btn-sm" onclick="startTest('${t.id}')">▶ ${lastR?'Ще раз':'Почати'}</button></div>`;
+  }).join('')||'<div class="empty"><div class="ei">📝</div><p>Тестів поки немає</p></div>';
+}
+
+function buildTestBuilder(){
+  document.getElementById('testBuilderDiv').innerHTML=`<div class="card">
+  <div class="card-hdr"><h3>Конструктор тесту НМТ-формату</h3></div>
+  <div class="form-group"><label>Назва тесту</label><input type="text" placeholder="Назва..."></div>
+  <p style="font-size:.77rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin:.6rem 0 .45rem;">Завдання 1–20 (одна правильна відповідь)</p>
+  ${Array.from({length:20},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${i+1}</div><input type="text" placeholder="Питання..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.32rem;"><div style="display:grid;grid-template-columns:1fr 1fr;gap:.38rem;">${['А','Б','В','Г'].map((l,j)=>`<div style="display:flex;align-items:center;gap:.32rem;"><input type="radio" name="c${i}" value="${j}"><input type="text" placeholder="${l})" style="flex:1;padding:.32rem .52rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);"></div>`).join('')}</div><input type="text" placeholder="Пояснення..." style="width:100%;margin-top:.32rem;padding:.35rem .58px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.75rem;font-family:var(--font-main);"></div>`).join('')}
+  <p style="font-size:.77rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin:.6rem 0 .45rem;">Завдання 21–24 (відповідність, 4 бали)</p>
+  ${Array.from({length:4},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${21+i}</div><input type="text" placeholder="Умова..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.38rem;"><div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;">${['1','2','3','4'].map(n=>`<input type="text" placeholder="Ліворуч ${n}" style="padding:.32rem .52rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);margin-bottom:.28rem;">`).join('')}${['А','Б','В','Г'].map(l=>`<input type="text" placeholder="Праворуч ${l}" style="padding:.32rem .52rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);margin-bottom:.28rem;">`).join('')}</div></div>`).join('')}
+  <p style="font-size:.77rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin:.6rem 0 .45rem;">Завдання 25–27 (хронологія)</p>
+  ${Array.from({length:3},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${25+i}</div><input type="text" placeholder="Умова..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.38rem;">${[1,2,3,4].map(n=>`<input type="text" placeholder="Подія ${n}" style="width:100%;padding:.32rem .58rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);margin-bottom:.28rem;">`).join('')}</div>`).join('')}
+  <p style="font-size:.77rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin:.6rem 0 .45rem;">Завдання 28–30 (3 цифри з 7, 3 бали)</p>
+  ${Array.from({length:3},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${28+i}</div><input type="text" placeholder="Питання..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.38rem;">${[1,2,3,4,5,6,7].map(n=>`<input type="text" placeholder="${n}) Варіант відповіді ${n}" style="width:100%;padding:.3rem .56rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.76rem;font-family:var(--font-main);margin-bottom:.25rem;">`).join('')}<input type="text" placeholder="Правильні цифри (напр: 2,4,6)" style="width:100%;padding:.35rem .58rem;border:1.5px solid var(--primary);border-radius:6px;font-size:.78rem;font-family:var(--font-main);margin-top:.2rem;"></div>`).join('')}
+  <button class="btn btn-primary" style="margin-top:.65rem;" onclick="alert('✅ Тест збережено (демо)')">💾 Зберегти тест</button></div>`;
+}
+
+function buildTestResultsDiv(){
+  if(currentUser.role!=='teacher')return;
+  const d=document.getElementById('testResultsDiv');
+  if(!d)return;
+  if(!testResults.length){d.innerHTML='<div class="empty"><div class="ei">📊</div><p>Результати з\'являться після проходження тестів</p></div>';return;}
+  const grouped={};
+  testResults.forEach(r=>{const em=r.studentEmail||r.student_email;if(!grouped[em])grouped[em]=[];grouped[em].push(r);});
+  d.innerHTML=Object.entries(grouped).map(([em,rs])=>`
+    <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin:.75rem 0 .42rem;">${rs[0].studentName||em}</h4>`+
+    rs.map(r=>`<div class="test-li" style="cursor:default;"><div class="tli-num">📊</div><div class="tli-info"><div class="tli-name">${tests.find(t=>t.id===(r.testId||r.test_id))?.title||'Тест'}</div><div class="tli-meta">Бал: ${r.score}/${r.max_score||r.maxScore||30} · Спроб: ${r.attempts||1} · ${r.date}</div></div></div>`).join('')
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  TAKE TEST
+// ═══════════════════════════════════════════════════════
+function previewTest(testId){
+  activeTest={...tests.find(x=>x.id===testId),reviewMode:true};
+  ttAnswers={};ttSaved={};testFinished=false;
+  renderTakeTest();document.getElementById('takeTest').classList.add('show');
+}
+function startTest(testId){
+  activeTest={...tests.find(x=>x.id===testId),reviewMode:false};
+  ttAnswers={};ttSaved={};testFinished=false;
+  renderTakeTest();document.getElementById('takeTest').classList.add('show');
+}
+function closeTakeTest(){document.getElementById('takeTest').classList.remove('show');activeTest=null;}
+
+function renderTakeTest(){
+  document.getElementById('ttHeader').textContent=activeTest.title;
+  document.getElementById('ttSidebar').innerHTML='<div class="tt-sidebar-title">№</div>'+
+    activeTest.questions.map((q,i)=>`<div class="tt-num ${ttSaved[i]?'saved':''}" id="ttN${i}" onclick="scrollToQ(${i})">${q.n}</div>`).join('');
+  document.getElementById('ttQuestions').innerHTML=activeTest.questions.map((q,i)=>renderQ(q,i,testFinished)).join('');
+  document.getElementById('ttFooter').innerHTML=testFinished?'':
+    `<button class="btn btn-primary" style="padding:.72rem 2.75rem;font-size:.92rem;" onclick="submitTestFinal()">🏁 Завершити тест</button>
+    <button class="btn btn-outline" style="margin-left:.65rem;" onclick="closeTakeTest()">Вийти</button>`;
+}
+
+function renderQ(q,idx,finished){
+  const saved=ttSaved[idx];
+  const labels={single:'Одна правильна відповідь',match:'Встановіть відповідність (4 бали)',chrono:'Хронологічна послідовність',open:'Вкажіть 3 цифри з 7 (по 1 балу)'};
+  let inner='';
+  if(q.type==='single'){
+    inner=q.opts.map((o,j)=>{
+      let cls='tt-option';
+      if(finished){cls+=' disabled';if(j===q.correct)cls+=' correct';else if(ttAnswers[idx]===j)cls+=' wrong';}
+      else if(ttAnswers[idx]===j)cls+=' selected';
+      return `<div class="${cls}" onclick="${finished||saved?'':'selOpt('+idx+','+j+')'}"><input type="radio" name="q${idx}" ${ttAnswers[idx]===j?'checked':''} ${finished||saved?'disabled':''}> ${o}</div>`;
+    }).join('');
+  } else if(q.type==='match'){
+    const uA=ttAnswers[idx]||{};
+    inner=q.left.map((l,j)=>{
+      const ok=finished&&uA[j]===q.correct[j];
+      const bad=finished&&uA[j]!==undefined&&uA[j]!==q.correct[j];
+      return `<div class="match-row">
+        <div class="match-left">${j+1}. ${l}</div>
+        <div class="match-right"><select id="m_${idx}_${j}" onchange="selMatch(${idx},${j},this.value)" ${finished||saved?'disabled':''} style="${ok?'border-color:var(--success);background:#E6F7EE;':bad?'border-color:var(--danger);background:#FEECEC;':''}">
+          <option value="">—</option>
+          ${q.right.map((r,k)=>`<option value="${k}" ${uA[j]===k?'selected':''}>${String.fromCharCode(1040+k)}. ${r}</option>`).join('')}
+        </select></div>
+        ${finished?`<span style="margin-left:.35rem;">${ok?'✅':'❌'+(bad?' ('+String.fromCharCode(1040+q.correct[j])+')':'')}</span>`:''}
+      </div>`;
+    }).join('');
+  } else if(q.type==='chrono'){
+    const uA=ttAnswers[idx]||{};
+    inner=`<p style="font-size:.76rem;color:var(--gray-400);margin-bottom:.6rem;">Вкажіть порядковий номер кожної події (1–4):</p>`+
+      q.events.map((e,j)=>{
+        const ok=finished&&uA[j]===q.correct[j];
+        const bad=finished&&uA[j]!==undefined&&uA[j]!==q.correct[j];
+        return `<div class="chrono-item"><div class="ch-event">${e}</div>
+          <select class="ch-sel" id="ch_${idx}_${j}" onchange="selChrono(${idx},${j},this.value)" ${finished||saved?'disabled':''} style="${ok?'border-color:var(--success);background:#E6F7EE;':bad?'border-color:var(--danger);background:#FEECEC;':''}">
+            <option value="">№</option>
+            ${[1,2,3,4].map(n=>`<option value="${n-1}" ${uA[j]===n-1?'selected':''}>${n}</option>`).join('')}
+          </select>
+          ${finished?`<span>${ok?'✅':'❌ ('+(q.correct[j]+1)+')'}</span>`:''}
+        </div>`;
+      }).join('');
+  } else if(q.type==='open'){
+    const uA=ttAnswers[idx]||['','',''];
+    inner=`<div style="margin-bottom:.72rem;">${q.options.map((o,j)=>`<div style="font-size:.8rem;padding:.28rem 0;color:var(--gray-600);">${j+1}) ${o}</div>`).join('')}</div>
+    <p style="font-size:.76rem;color:var(--gray-500);margin-bottom:.45rem;">Впишіть цифри правильних відповідей (по одній у кожну клітинку):</p>
+    <div class="open-cells">`+
+    [0,1,2].map(j=>{
+      const ok=finished&&uA[j]&&q.answers.includes(uA[j]);
+      const bad=finished&&uA[j]&&!q.answers.includes(uA[j]);
+      return `<input class="open-cell ${finished?(ok?'correct-cell':bad?'wrong-cell':''):''}" type="text" maxlength="1" id="op_${idx}_${j}" placeholder="${j+1}" ${finished||saved?'disabled':''} value="${uA[j]||''}" oninput="updOpen(${idx},${j},this.value)">`;
+    }).join('')+`</div>`+
+    (finished?`<p style="font-size:.73rem;color:var(--gray-400);margin-top:.42rem;">✅ Правильні: ${q.answers.join(', ')}</p>`:'');
+  }
+  const expl=finished&&q.explanation?`<div class="explanation-box">💡 <strong>Пояснення:</strong> ${q.explanation}</div>`:'';
+  const saveBtn=(!finished&&!saved)?`<div class="save-btn-wrap"><button class="btn btn-primary btn-sm" onclick="saveAnswer(${idx})">💾 Зберегти відповідь</button></div>`:'';
+  const savedMark=(saved&&!finished)?`<div style="margin-top:.6rem;color:var(--success);font-size:.78rem;font-weight:700;">✅ Збережено</div>`:'';
+  return `<div class="tt-question" id="ttQ${idx}">
+    <div class="tt-q-label">Завдання ${q.n} · ${labels[q.type]||''}</div>
+    <div class="tt-q-text">${q.q}</div>
+    <div>${inner}</div>${expl}${saveBtn}${savedMark}
+  </div>`;
+}
+
+function selOpt(idx,j){if(!ttSaved[idx]&&!testFinished){ttAnswers[idx]=j;refreshQ(idx);}}
+function selMatch(idx,j,val){if(!ttSaved[idx]&&!testFinished){if(!ttAnswers[idx])ttAnswers[idx]={};ttAnswers[idx][j]=parseInt(val);}}
+function selChrono(idx,j,val){if(!ttSaved[idx]&&!testFinished){if(!ttAnswers[idx])ttAnswers[idx]={};ttAnswers[idx][j]=parseInt(val);}}
+function updOpen(idx,j,val){if(!ttAnswers[idx])ttAnswers[idx]=['','',''];ttAnswers[idx][j]=val.trim();}
+
+function saveAnswer(idx){
+  const q=activeTest.questions[idx];
+  if(q.type==='match'){if(!ttAnswers[idx])ttAnswers[idx]={};[0,1,2,3].forEach(j=>{const s=document.getElementById(`m_${idx}_${j}`);if(s)ttAnswers[idx][j]=parseInt(s.value);});}
+  if(q.type==='chrono'){if(!ttAnswers[idx])ttAnswers[idx]={};[0,1,2,3].forEach(j=>{const s=document.getElementById(`ch_${idx}_${j}`);if(s)ttAnswers[idx][j]=parseInt(s.value);});}
+  if(q.type==='open'){ttAnswers[idx]=[0,1,2].map(j=>document.getElementById(`op_${idx}_${j}`)?.value?.trim()||'');}
+  ttSaved[idx]=true;refreshQ(idx);
+  document.getElementById('ttN'+idx)?.classList.add('saved');
+}
+function refreshQ(idx){
+  const el=document.getElementById('ttQ'+idx);
+  if(el){const tmp=document.createElement('div');tmp.innerHTML=renderQ(activeTest.questions[idx],idx,testFinished);el.replaceWith(tmp.firstChild);}
+}
+function scrollToQ(idx){document.getElementById('ttQ'+idx)?.scrollIntoView({behavior:'smooth',block:'center'});}
+
+function submitTestFinal(){
+  activeTest.questions.forEach((_,i)=>{if(!ttSaved[i])saveAnswer(i);});
+  testFinished=true;
+  let score=0,maxScore=0;
+  activeTest.questions.forEach((q,i)=>{
+    const ans=ttAnswers[i];
+    if(q.type==='single'){maxScore+=1;if(ans===q.correct)score+=1;}
+    else if(q.type==='match'){
+      maxScore+=4;
+      const c=[0,1,2,3].filter(j=>ans&&ans[j]===q.correct[j]).length;
+      score+=c; // 4/3/2/1/0
+    } else if(q.type==='chrono'){
+      maxScore+=3;
+      if(!ans)return;
+      const all=[0,1,2,3].every(j=>ans[j]===q.correct[j]);
+      const f=ans[0]===q.correct[0],l=ans[3]===q.correct[3];
+      if(all)score+=3;else if(f&&l)score+=2;else if(f||l)score+=1;
+    } else if(q.type==='open'){
+      maxScore+=3;
+      if(!ans)return;
+      const c=ans.filter(a=>a&&q.answers.includes(a.trim())).length;
+      score+=Math.min(c,3); // 1 бал за кожну правильну цифру
+    }
+  });
+  const nm=currentUser.full_name||currentUser.name;
+  const myPrev=testResults.filter(r=>(r.studentEmail||r.student_email)===currentUser.email&&(r.testId||r.test_id)===activeTest.id);
+  const attempts=(myPrev.length||0)+1;
+  testResults.push({studentEmail:currentUser.email,studentName:nm,testId:activeTest.id,score,max_score:maxScore,date:new Date().toLocaleDateString('uk-UA'),attempts});
+  addNotif(nm,getAv(nm),`Пройшов(ла) "${activeTest.title}" — ${score}/${maxScore} (спроба ${attempts})`,'test');
+  document.getElementById('ttQuestions').innerHTML=activeTest.questions.map((q,i)=>renderQ(q,i,true)).join('');
+  document.getElementById('ttFooter').innerHTML=`<div class="tt-result-screen">
+    <div style="font-size:.95rem;color:var(--gray-500);">Результат</div>
+    <div class="result-score">${score} / ${maxScore}</div>
+    <div class="result-msg">${scoreMsg(score,maxScore)}</div>
+    <div style="display:flex;gap:.65rem;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="retakeTest('${activeTest.id}')">🔄 Пройти ще раз</button>
+      <button class="btn btn-outline" onclick="closeTakeTest();buildStudentTestList();buildTestResultsDiv();">✓ Завершити</button>
+    </div>
+  </div>`;
+  buildStudentTestList();buildTestResultsDiv();
+}
+function retakeTest(id){closeTakeTest();setTimeout(()=>startTest(id),120);}
+function scoreMsg(s,m){
+  const p=s/m;
+  if(p>=0.9)return '🏆 Відмінно! Чудова підготовка до НМТ!';
+  if(p>=0.7)return '👍 Добре! Є що вдосконалити.';
+  if(p>=0.5)return '📚 Непогано. Повторіть теми.';
+  return '💪 Не здавайтеся! Вчіть далі!';
+}
+</script>
+</body>
+</html>
