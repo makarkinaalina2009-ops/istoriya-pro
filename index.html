@@ -496,13 +496,13 @@ const TEACHER_INVITE_CODE = 'TEACHER2024'; // код для реєстрації
 // ═══════════════════════════════════════════════════════
 //  SUPABASE INIT
 // ═══════════════════════════════════════════════════════
-let sb = null;
-let isSbConfigured = false;
+let sbClient = null;
+let isSupabaseConfigured = false;
 
 try {
   if(SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY'){
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    isSbConfigured = true;
+    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    isSupabaseConfigured = true;
   }
 } catch(e){ console.warn('Supabase init error:', e); }
 
@@ -568,7 +568,7 @@ const TOPIC_PRACTICE = {
 window.addEventListener('DOMContentLoaded', async ()=>{
   tests = [buildTest1()];
 
-  if(!isSbConfigured){
+  if(!isSupabaseConfigured){
     // Demo mode — no Supabase
     document.getElementById('loadingScreen').style.display='none';
     document.getElementById('configBanner').classList.add('show');
@@ -578,7 +578,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 
   // Check existing session
   try {
-    const {data:{session}} = await sb.auth.getSession();
+    const {data:{session}} = await sbClient.auth.getSession();
     if(session){
       await loadUserProfile(session.user);
     } else {
@@ -589,7 +589,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   }
 
   // Listen for auth changes
-  sb.auth.onAuthStateChange(async (event, session)=>{
+  sbClient.auth.onAuthStateChange(async (event, session)=>{
     if(event==='SIGNED_IN' && session){
       await loadUserProfile(session.user);
     } else if(event==='SIGNED_OUT'){
@@ -609,7 +609,7 @@ function showAuthScreen(){
 async function loadUserProfile(authUser){
   try {
     // Спочатку шукаємо в таблиці teachers
-    const {data:teacher} = await sb
+    const {data:teacher} = await sbClient
       .from('teachers')
       .select('*')
       .eq('email', authUser.email)
@@ -628,7 +628,7 @@ async function loadUserProfile(authUser){
     }
 
     // Якщо не вчитель — шукаємо в таблиці students
-    const {data:student} = await sb
+    const {data:student} = await sbClient
       .from('students')
       .select('*')
       .eq('email', authUser.email)
@@ -686,7 +686,7 @@ async function doLogin(){
   if(!email||!pass){errEl.textContent='Заповніть всі поля';return;}
   errEl.textContent='';
 
-  if(!isSbConfigured){
+  if(!isSupabaseConfigured){
     // Demo fallback
     demoLogin(email, pass); return;
   }
@@ -694,7 +694,7 @@ async function doLogin(){
   const btn=document.getElementById('loginBtn');
   btn.disabled=true; btn.textContent='Вхід...';
   try {
-    const {data, error} = await sb.auth.signInWithPassword({email,password:pass});
+    const {data, error} = await sbClient.auth.signInWithPassword({email,password:pass});
     if(error) throw error;
     // Profile loaded via onAuthStateChange
   } catch(e){
@@ -717,7 +717,7 @@ async function doRegister(){
   if(!ukrNameValid(name)){errEl.textContent='Ім\'я — тільки українські літери';return;}
   if(pass.length<6){errEl.textContent='Пароль — мінімум 6 символів';return;}
 
-  if(!isSbConfigured){
+  if(!isSupabaseConfigured){
     demoRegister(name,email,pass,code); return;
   }
 
@@ -732,15 +732,15 @@ async function doRegister(){
 
     if(currentRole==='teacher'){
       // Перевіряємо код вчителя в таблиці teacher_codes
-      const {data:codeData} = await sb.from('teacher_codes').select('*').eq('code',code).eq('used',false).single();
+      const {data:codeData} = await sbClient.from('teacher_codes').select('*').eq('code',code).eq('used',false).single();
       if(!codeData){errEl.textContent='Невірний або вже використаний код вчителя';btn.disabled=false;btn.textContent='Зареєструватися';return;}
 
       // Реєструємо через Supabase Auth
-      const {data, error} = await sb.auth.signUp({email, password:pass});
+      const {data, error} = await sbClient.auth.signUp({email, password:pass});
       if(error) throw error;
 
       // Створюємо запис у таблиці teachers
-      await sb.from('teachers').insert({
+      await sbClient.from('teachers').insert({
         email,
         first_name: firstName,
         last_name: lastName,
@@ -748,27 +748,27 @@ async function doRegister(){
       });
 
       // Позначаємо код як використаний
-      await sb.from('teacher_codes').update({used:true}).eq('code',code);
+      await sbClient.from('teacher_codes').update({used:true}).eq('code',code);
 
     } else {
       // Перевіряємо дозволений список
-      const {data:allowed} = await sb.from('allowed_students').select('email').eq('email',email).single();
+      const {data:allowed} = await sbClient.from('allowed_students').select('email').eq('email',email).single();
       if(!allowed){errEl.textContent='Ваш email не у списку дозволених. Зверніться до вчителя.';btn.disabled=false;btn.textContent='Зареєструватися';return;}
 
       // Реєструємо через Supabase Auth
-      const {data, error} = await sb.auth.signUp({email, password:pass});
+      const {data, error} = await sbClient.auth.signUp({email, password:pass});
       if(error) throw error;
 
       // Оновлюємо або створюємо запис у таблиці students
-      const {data:existStu} = await sb.from('students').select('id').eq('email',email).single();
+      const {data:existStu} = await sbClient.from('students').select('id').eq('email',email).single();
       if(existStu){
-        await sb.from('students').update({
+        await sbClient.from('students').update({
           first_name: firstName,
           last_name: lastName,
           is_registered: true,
         }).eq('email',email);
       } else {
-        await sb.from('students').insert({
+        await sbClient.from('students').insert({
           email,
           first_name: firstName,
           last_name: lastName,
@@ -788,7 +788,7 @@ async function doRegister(){
 
 // ── LOGOUT ──
 async function doLogout(){
-  if(isSbConfigured){ await sb.auth.signOut(); }
+  if(isSupabaseConfigured){ await sbClient.auth.signOut(); }
   else {
     currentUser=null;
     document.getElementById('app').style.display='none';
@@ -827,7 +827,7 @@ async function startApp(){
   document.getElementById('authScreen').classList.remove('show');
   document.getElementById('app').style.display='flex';
 
-  if(isSbConfigured){ await syncFromSupabase(); }
+  if(isSupabaseConfigured){ await syncFromSupabase(); }
   else {
     allowedStudents=demoAllowed;
     registeredProfiles=DEMO_USERS;
@@ -843,15 +843,15 @@ async function startApp(){
 }
 
 async function syncFromSupabase(){
-  if(!isSbConfigured) return;
+  if(!isSupabaseConfigured) return;
   try {
     // Завантажуємо список дозволених учнів
-    const {data:as}=await sb.from('allowed_students').select('email');
+    const {data:as}=await sbClient.from('allowed_students').select('email');
     if(as) allowedStudents=as;
 
     // Вчитель бачить усіх зареєстрованих учнів
     if(currentUser.role==='teacher'){
-      const {data:studs}=await sb.from('students').select('*');
+      const {data:studs}=await sbClient.from('students').select('*');
       if(studs){
         registeredProfiles = studs.map(s=>({
           id: s.id,
@@ -1073,7 +1073,7 @@ function addNotif(from,av,text,type){
 function buildDashContent(){
   const isT=currentUser.role==='teacher';
   if(isT){
-    const regCount=isSbConfigured?registeredProfiles.filter(p=>p.role==='student').length:DEMO_USERS.filter(u=>u.role==='student').length;
+    const regCount=isSupabaseConfigured?registeredProfiles.filter(p=>p.role==='student').length:DEMO_USERS.filter(u=>u.role==='student').length;
     document.getElementById('teacherStatRow').innerHTML=`
       <div class="stat-card"><div class="stat-num">${regCount}</div><div class="stat-lbl">Зареєстровано учнів</div></div>
       <div class="stat-card"><div class="stat-num">${allowedStudents.length}</div><div class="stat-lbl">Дозволених email</div></div>
@@ -1137,7 +1137,7 @@ function saveTopicTitle(id,v){if(v.trim())topicState[id].title=v.trim();buildSid
 // ═══════════════════════════════════════════════════════
 function buildStudentsList(){
   if(currentUser.role!=='teacher')return;
-  const profiles=isSbConfigured?registeredProfiles.filter(p=>p.role==='student'):DEMO_USERS.filter(u=>u.role==='student');
+  const profiles=isSupabaseConfigured?registeredProfiles.filter(p=>p.role==='student'):DEMO_USERS.filter(u=>u.role==='student');
   document.getElementById('studentsList').innerHTML=`
   <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.65rem;">✉️ Дозволені email (${allowedStudents.length})</h4>
   ${allowedStudents.map((s,i)=>{
@@ -1163,8 +1163,8 @@ async function addAllowedStudent(){
   if(allowedStudents.find(s=>s.email===email)){errEl.textContent='Цей email вже є';return;}
   errEl.textContent='';
 
-  if(isSbConfigured){
-    const {error}=await sb.from('allowed_students').insert({email,added_by:currentUser.id});
+  if(isSupabaseConfigured){
+    const {error}=await sbClient.from('allowed_students').insert({email,added_by:currentUser.id});
     if(error){errEl.textContent=error.message;return;}
     allowedStudents.push({email});
   } else {
@@ -1178,8 +1178,8 @@ async function addAllowedStudent(){
 async function removeAllowedStudent(i){
   if(!confirm('Видалити дозволений email?'))return;
   const em=allowedStudents[i].email;
-  if(isSbConfigured){
-    await sb.from('allowed_students').delete().eq('email',em);
+  if(isSupabaseConfigured){
+    await sbClient.from('allowed_students').delete().eq('email',em);
   }
   allowedStudents.splice(i,1);
   const di=demoAllowed.findIndex(x=>x.email===em);
