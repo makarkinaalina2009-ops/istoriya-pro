@@ -487,49 +487,45 @@ hr.div{border:none;border-top:1.5px solid var(--gray-100);margin:1rem 0;}
 </div>
 <script>
 // ═══════════════════════════════════════════════════════
-//  ⚙️ SUPABASE CONFIG — замініть на свої значення!
+//  ⚙️ SUPABASE CONFIG
 // ═══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://jltsznqsxhdgnwahpwxg.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsdHN6bnFzeGhkZ253YWhwd3hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2ODM3MzgsImV4cCI6MjA5NjI1OTczOH0.L0zL-VddyAfS2UVzyEeuzTOwlPs_3WUQgL_B3fPk_jo';
-const TEACHER_INVITE_CODE = 'TEACHER2024'; // код для реєстрації вчителя (зберігається у БД)
 
 // ═══════════════════════════════════════════════════════
 //  SUPABASE INIT
 // ═══════════════════════════════════════════════════════
-let sbClient = null;
+let _sb = null;
 let isSupabaseConfigured = false;
 
 try {
-  if(SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY'){
-    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    isSupabaseConfigured = true;
-  }
+  _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  isSupabaseConfigured = true;
 } catch(e){ console.warn('Supabase init error:', e); }
 
 // ═══════════════════════════════════════════════════════
 //  APP STATE
 // ═══════════════════════════════════════════════════════
-let currentUser = null;   // {id, email, full_name, role}
-let currentRole = 'student'; // selected in auth tabs
-let currentMode = 'login';   // login | register
+let currentUser = null;
+let currentRole = 'student';
+let currentMode = 'login';
 let currentTopicId = null;
 let activeTest = null;
 let ttAnswers = {};
 let ttSaved = {};
 let testFinished = false;
 
-// Local state (synced from Supabase or in-memory demo fallback)
-let allowedStudents = []; // [{email}]
-let registeredProfiles = []; // profiles from DB
+let allowedStudents = [];
+let registeredProfiles = [];
 let notifications = [];
 let tests = [];
-let testResults = []; // [{student_email, student_name, test_id, score, max_score, date, attempts}]
+let testResults = [];
 let uploadedFiles = {};
 let hwByTopic = {};
 let studentHwSubs = {};
 let myHwSubmitted = {};
 
-// 32 topics definition
+// 32 topics
 const ALL_TOPICS_DEF = [
   {id:'t01',defTitle:'Давня Україна. Трипільська культура'},{id:'t02',defTitle:'Кіммерійці, скіфи, сармати'},
   {id:'t03',defTitle:'Античні міста-держави Причорномор\'я'},{id:'t04',defTitle:'Велике переселення народів. Слов\'яни'},
@@ -563,42 +559,29 @@ const TOPIC_PRACTICE = {
 };
 
 // ═══════════════════════════════════════════════════════
-//  BOOT
+//  BOOT — просто перевіряємо сесію, без onAuthStateChange
 // ═══════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async ()=>{
   tests = [buildTest1()];
 
   if(!isSupabaseConfigured){
-    // Demo mode — no Supabase
     document.getElementById('loadingScreen').style.display='none';
     document.getElementById('configBanner').classList.add('show');
     document.getElementById('authScreen').classList.add('show');
     return;
   }
 
-  // Check existing session
   try {
-    const {data:{session}} = await sbClient.auth.getSession();
-    if(session){
+    const {data:{session}} = await _sb.auth.getSession();
+    if(session && session.user){
       await loadUserProfile(session.user);
     } else {
       showAuthScreen();
     }
   } catch(e){
+    console.warn('Session check failed:', e);
     showAuthScreen();
   }
-
-  // Listen for auth changes
-  sbClient.auth.onAuthStateChange(async (event, session)=>{
-    if(event==='SIGNED_IN' && session){
-      await loadUserProfile(session.user);
-    } else if(event==='SIGNED_OUT'){
-      currentUser=null;
-      document.getElementById('app').classList?.remove('show');
-      document.getElementById('app').style.display='none';
-      showAuthScreen();
-    }
-  });
 });
 
 function showAuthScreen(){
@@ -608,52 +591,55 @@ function showAuthScreen(){
 
 async function loadUserProfile(authUser){
   try {
-    // Спочатку шукаємо в таблиці teachers
-    const {data:teacher} = await sbClient
+    // Шукаємо в таблиці teachers
+    const {data:teacher, error:te} = await _sb
       .from('teachers')
       .select('*')
       .eq('email', authUser.email)
-      .single();
+      .maybeSingle();
 
     if(teacher){
       currentUser = {
         id: authUser.id,
         email: authUser.email,
-        full_name: (teacher.first_name||'') + (teacher.last_name ? ' '+teacher.last_name : ''),
+        full_name: ((teacher.first_name||'') + ' ' + (teacher.last_name||'')).trim() || authUser.email,
         role: 'teacher',
       };
-      document.getElementById('loadingScreen').style.display='none';
-      await startApp();
+      showApp();
       return;
     }
 
-    // Якщо не вчитель — шукаємо в таблиці students
-    const {data:student} = await sbClient
+    // Шукаємо в таблиці students
+    const {data:student, error:se} = await _sb
       .from('students')
       .select('*')
       .eq('email', authUser.email)
-      .single();
+      .maybeSingle();
 
     if(student){
       currentUser = {
         id: authUser.id,
         email: authUser.email,
-        full_name: (student.first_name||'') + (student.last_name ? ' '+student.last_name : ''),
+        full_name: ((student.first_name||'') + ' ' + (student.last_name||'')).trim() || authUser.email,
         role: 'student',
         teacher_id: student.teacher_id,
       };
-      document.getElementById('loadingScreen').style.display='none';
-      await startApp();
+      showApp();
       return;
     }
 
-    // Профіль не знайдено
-    document.getElementById('loadingScreen').style.display='none';
+    // Не знайдено — показуємо екран входу
     showAuthScreen();
   } catch(e){
-    document.getElementById('loadingScreen').style.display='none';
+    console.warn('loadUserProfile error:', e);
     showAuthScreen();
   }
+}
+
+function showApp(){
+  document.getElementById('loadingScreen').style.display='none';
+  document.getElementById('authScreen').classList.remove('show');
+  startApp();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -666,9 +652,9 @@ function switchRole(role){
   document.getElementById('registerTitle').textContent=role==='student'?'Реєстрація Учня':'Реєстрація Вчителя';
   document.getElementById('regEmailHint').textContent=role==='student'?'Має бути у списку дозволених від вчителя':'Службова адреса вчителя';
   document.getElementById('teacherCodeField').style.display=role==='teacher'?'block':'none';
-  // Hide register for teacher if you want — keep open
   document.getElementById('modeTabs').style.display='flex';
 }
+
 function switchMode(mode){
   currentMode=mode;
   document.querySelectorAll('.auth-mode-tab').forEach((t,i)=>t.classList.toggle('active',i===(mode==='login'?0:1)));
@@ -683,22 +669,22 @@ async function doLogin(){
   const email=document.getElementById('loginEmail').value.trim();
   const pass=document.getElementById('loginPass').value;
   const errEl=document.getElementById('loginErr');
-  if(!email||!pass){errEl.textContent='Заповніть всі поля';return;}
   errEl.textContent='';
-
-  if(!isSupabaseConfigured){
-    // Demo fallback
-    demoLogin(email, pass); return;
-  }
+  if(!email||!pass){errEl.textContent='Заповніть всі поля';return;}
 
   const btn=document.getElementById('loginBtn');
   btn.disabled=true; btn.textContent='Вхід...';
+
   try {
-    const {data, error} = await sbClient.auth.signInWithPassword({email,password:pass});
+    const {data, error} = await _sb.auth.signInWithPassword({email, password:pass});
     if(error) throw error;
-    // Profile loaded via onAuthStateChange
+    if(data && data.user){
+      await loadUserProfile(data.user);
+    }
   } catch(e){
-    errEl.textContent = e.message==='Invalid login credentials'?'Невірна пошта або пароль':e.message;
+    errEl.textContent = (e.message==='Invalid login credentials')
+      ? 'Невірна пошта або пароль' : e.message;
+  } finally {
     btn.disabled=false; btn.textContent='Увійти';
   }
 }
@@ -717,68 +703,50 @@ async function doRegister(){
   if(!ukrNameValid(name)){errEl.textContent='Ім\'я — тільки українські літери';return;}
   if(pass.length<6){errEl.textContent='Пароль — мінімум 6 символів';return;}
 
-  if(!isSupabaseConfigured){
-    demoRegister(name,email,pass,code); return;
-  }
-
   const btn=document.getElementById('registerBtn');
   btn.disabled=true; btn.textContent='Реєстрація...';
 
   try {
-    // Розбиваємо ім'я на first_name та last_name
-    const nameParts = name.trim().split(/\s+/);
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
+    const parts = name.trim().split(/\s+/);
+    const firstName = parts[0]||'';
+    const lastName = parts.slice(1).join(' ')||'';
 
     if(currentRole==='teacher'){
-      // Перевіряємо код вчителя в таблиці teacher_codes
-      const {data:codeData} = await sbClient.from('teacher_codes').select('*').eq('code',code).eq('used',false).single();
-      if(!codeData){errEl.textContent='Невірний або вже використаний код вчителя';btn.disabled=false;btn.textContent='Зареєструватися';return;}
+      // Перевіряємо код в teacher_codes
+      const {data:codeRow} = await _sb.from('teacher_codes').select('*').eq('code',code).eq('used',false).maybeSingle();
+      if(!codeRow){errEl.textContent='Невірний або вже використаний код вчителя';return;}
 
-      // Реєструємо через Supabase Auth
-      const {data, error} = await sbClient.auth.signUp({email, password:pass});
-      if(error) throw error;
-
-      // Створюємо запис у таблиці teachers
-      await sbClient.from('teachers').insert({
-        email,
-        first_name: firstName,
-        last_name: lastName,
-        teacher_code: code,
+      const {data:authData, error:authErr} = await _sb.auth.signUp({
+        email, password:pass,
+        options:{data:{email_confirm:true}}
       });
+      if(authErr) throw authErr;
 
-      // Позначаємо код як використаний
-      await sbClient.from('teacher_codes').update({used:true}).eq('code',code);
+      await _sb.from('teachers').insert({email, first_name:firstName, last_name:lastName, teacher_code:code});
+      await _sb.from('teacher_codes').update({used:true}).eq('code',code);
 
     } else {
       // Перевіряємо дозволений список
-      const {data:allowed} = await sbClient.from('allowed_students').select('email').eq('email',email).single();
-      if(!allowed){errEl.textContent='Ваш email не у списку дозволених. Зверніться до вчителя.';btn.disabled=false;btn.textContent='Зареєструватися';return;}
+      const {data:allowed} = await _sb.from('allowed_students').select('email').eq('email',email).maybeSingle();
+      if(!allowed){errEl.textContent='Ваш email не у списку дозволених. Зверніться до вчителя.';return;}
 
-      // Реєструємо через Supabase Auth
-      const {data, error} = await sbClient.auth.signUp({email, password:pass});
-      if(error) throw error;
+      const {data:authData, error:authErr} = await _sb.auth.signUp({
+        email, password:pass,
+        options:{data:{email_confirm:true}}
+      });
+      if(authErr) throw authErr;
 
-      // Оновлюємо або створюємо запис у таблиці students
-      const {data:existStu} = await sbClient.from('students').select('id').eq('email',email).single();
+      // Оновлюємо або створюємо запис
+      const {data:existStu} = await _sb.from('students').select('id').eq('email',email).maybeSingle();
       if(existStu){
-        await sbClient.from('students').update({
-          first_name: firstName,
-          last_name: lastName,
-          is_registered: true,
-        }).eq('email',email);
+        await _sb.from('students').update({first_name:firstName, last_name:lastName, is_registered:true}).eq('email',email);
       } else {
-        await sbClient.from('students').insert({
-          email,
-          first_name: firstName,
-          last_name: lastName,
-          is_registered: true,
-        });
+        await _sb.from('students').insert({email, first_name:firstName, last_name:lastName, is_registered:true});
       }
     }
 
-    okEl.textContent='✅ Реєстрація успішна! Перевірте email або увійдіть.';
-    setTimeout(()=>switchMode('login'),2500);
+    okEl.textContent='✅ Реєстрація успішна! Тепер увійдіть.';
+    setTimeout(()=>switchMode('login'),2000);
   } catch(e){
     errEl.textContent=e.message;
   } finally {
@@ -788,37 +756,19 @@ async function doRegister(){
 
 // ── LOGOUT ──
 async function doLogout(){
-  if(isSupabaseConfigured){ await sbClient.auth.signOut(); }
-  else {
-    currentUser=null;
-    document.getElementById('app').style.display='none';
-    document.getElementById('authScreen').classList.add('show');
-  }
+  if(isSupabaseConfigured){ await _sb.auth.signOut(); }
+  currentUser=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('authScreen').classList.add('show');
 }
 
-// ── DEMO FALLBACK (no Supabase) ──
+// ── DEMO FALLBACK ──
 const DEMO_USERS = [
   {id:'t1',email:'teacher@school.ua',pass:'teach2024',full_name:'Ольга Петрівна',role:'teacher'},
   {id:'s1',email:'demo@student.ua',pass:'pass123',full_name:'Коваль Марія',role:'student'},
   {id:'s2',email:'melnyk@student.ua',pass:'pass123',full_name:'Мельник Олег',role:'student'},
 ];
 let demoAllowed=[{email:'demo@student.ua'},{email:'melnyk@student.ua'}];
-function demoLogin(email,pass){
-  const u=DEMO_USERS.find(x=>x.email===email&&x.pass===pass);
-  if(!u){document.getElementById('loginErr').textContent='Невірна пошта або пароль';return;}
-  currentUser={...u};
-  document.getElementById('authScreen').classList.remove('show');
-  startApp();
-}
-function demoRegister(name,email,pass,code){
-  const okEl=document.getElementById('registerOk');
-  const errEl=document.getElementById('registerErr');
-  if(currentRole==='teacher'&&code!==TEACHER_INVITE_CODE){errEl.textContent='Невірний код вчителя';return;}
-  if(currentRole==='student'&&!demoAllowed.find(x=>x.email===email)){errEl.textContent='Email не у списку дозволених';return;}
-  DEMO_USERS.push({id:'u'+Date.now(),email,pass,full_name:name,role:currentRole});
-  okEl.textContent='✅ Зареєстровано! Тепер увійдіть.';
-  setTimeout(()=>switchMode('login'),2000);
-}
 
 // ═══════════════════════════════════════════════════════
 //  APP START
@@ -835,7 +785,6 @@ async function startApp(){
       {id:'n1',from:'Коваль Марія',av:'КМ',text:'Здала ДЗ з теми "Козацька доба"',type:'hw',time:'10 хв тому',read:false},
       {id:'n2',from:'Мельник Олег',av:'МО',text:'Пройшов тест — Бал: 24/30',type:'test',time:'30 хв тому',read:false},
     ];
-    // activate demo topics
     ['t05','t11','t23'].forEach(id=>topicState[id].active=true);
   }
 
@@ -845,21 +794,18 @@ async function startApp(){
 async function syncFromSupabase(){
   if(!isSupabaseConfigured) return;
   try {
-    // Завантажуємо список дозволених учнів
-    const {data:as}=await sbClient.from('allowed_students').select('email');
+    const {data:as} = await _sb.from('allowed_students').select('email');
     if(as) allowedStudents=as;
 
-    // Вчитель бачить усіх зареєстрованих учнів
     if(currentUser.role==='teacher'){
-      const {data:studs}=await sbClient.from('students').select('*');
+      const {data:studs} = await _sb.from('students').select('*');
       if(studs){
         registeredProfiles = studs.map(s=>({
           id: s.id,
           email: s.email,
-          full_name: (s.first_name||'') + (s.last_name ? ' '+s.last_name : ''),
+          full_name: ((s.first_name||'')+' '+(s.last_name||'')).trim(),
           role: 'student',
           is_registered: s.is_registered,
-          teacher_id: s.teacher_id,
         }));
       }
     }
@@ -876,8 +822,8 @@ function setupInterface(){
   document.getElementById('teacherDash').style.display=isT?'block':'none';
   document.getElementById('studentDash').style.display=isT?'none':'block';
   document.getElementById('roleBadge').innerHTML=isT?'<span class="tag tag-blue">📚 Вчитель</span>':'<span class="tag tag-green">🎓 Учень</span>';
-  const nm=currentUser.full_name||currentUser.name||'Користувач';
-  const av=nm.split(' ').map(p=>p[0]).join('').toUpperCase().substring(0,2);
+  const nm=currentUser.full_name||'Користувач';
+  const av=nm.split(' ').map(p=>p[0]).join('').toUpperCase().substring(0,2)||'??';
   document.getElementById('sbAv').textContent=av;
   document.getElementById('sbName').textContent=nm;
   document.getElementById('sbRole').textContent=isT?'Вчитель':'Учень';
@@ -924,7 +870,7 @@ function closeModal(id){document.getElementById(id).classList.remove('show');}
 function activeTopics(){return ALL_TOPICS_DEF.filter(t=>topicState[t.id].active);}
 function buildSidebarTopics(){
   const isT=currentUser.role==='teacher';
-  const list=isT?ALL_TOPICS_DEF.filter(t=>topicState[t.id].active):activeTopics();
+  const list=activeTopics();
   const cont=document.getElementById(isT?'sbTopicsTeacher':'sbTopicsStudent');
   cont.innerHTML='';
   list.forEach((t,i)=>{
@@ -937,7 +883,7 @@ function buildSidebarTopics(){
     </div>`;
     cont.appendChild(grp);
   });
-  document.getElementById('sbProgress').textContent=`Відкрито тем: ${activeTopics().length} з 32`;
+  document.getElementById('sbProgress').textContent=`Відкрито тем: ${list.length} з 32`;
 }
 function toggleTopic(id){
   const hdr=document.getElementById('tph_'+id);
@@ -966,7 +912,11 @@ function openTopic(topicId,tab){
     document.getElementById('theoryDropArea').innerHTML=`<div class="file-drop" onclick="document.getElementById('theoryFileInput').click()"><p>📎 <strong>Завантажити файл</strong> (PDF, PPTX, зображення)</p></div>`;
     document.getElementById('practiceDropArea').innerHTML=`<div class="file-drop" onclick="document.getElementById('practiceFileInput').click()"><p>📎 <strong>Завантажити матеріали</strong></p></div>`;
   }
-  renderFiles('theory',topicId); renderFiles('practice',topicId); renderHwTab(topicId);
+  // Завантажуємо файли з Supabase Storage
+  renderFiles('theory',topicId);
+  renderFiles('practice',topicId);
+  // Завантажуємо ДЗ вчителя з Storage
+  loadHwTeacherFiles(topicId).then(()=>renderHwTab(topicId));
   showPage('topicPage');
   const tabs=document.getElementById('topicPage').querySelectorAll('.tab');
   const contents=document.getElementById('topicPage').querySelectorAll('.tab-content');
@@ -974,21 +924,77 @@ function openTopic(topicId,tab){
   const idx={theory:0,practice:1,hw:2}[tab]||0;
   tabs[idx]?.classList.add('active'); contents[idx]?.classList.add('active');
 }
-function renderFiles(type,topicId){
-  const key=topicId+'_'+type;
-  const files=uploadedFiles[key]||[];
-  const cont=document.getElementById(type+'FileList');
-  if(!cont)return;
-  cont.innerHTML=files.length?files.map((f,i)=>`<div class="file-item"><span>📄</span><span class="fi-name">${f.name}</span><span class="fi-size">${f.size}</span>${currentUser.role==='teacher'?`<span class="fi-del" onclick="removeFile('${key}',${i})">✕</span>`:''}</div>`).join(''):'<p style="font-size:.78rem;color:var(--gray-300);">Файлів немає.</p>';
-}
-function handleUpload(type,input){
-  const key=currentTopicId+'_'+type;
-  if(!uploadedFiles[key]) uploadedFiles[key]=[];
-  Array.from(input.files).forEach(f=>uploadedFiles[key].push({name:f.name,size:fmtSize(f.size)}));
-  renderFiles(type,currentTopicId); input.value='';
-}
-function removeFile(key,i){uploadedFiles[key].splice(i,1); const t=key.includes('theory')?'theory':'practice'; renderFiles(t,currentTopicId);}
 function fmtSize(b){return b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB';}
+
+async function loadHwTeacherFiles(topicId){
+  try {
+    const folder = `hw/${topicId}/teacher`;
+    const {data} = await _sb.storage.from('Files').list(folder);
+    if(data && data.length){
+      hwByTopic[topicId] = data.map(f=>({
+        name: f.name,
+        path: `${folder}/${f.name}`,
+        size: fmtSize(f.metadata?.size||0),
+        url: getFileUrl(`${folder}/${f.name}`)
+      }));
+    }
+  } catch(e){}
+}
+
+function getFileUrl(path){
+  return `${SUPABASE_URL}/storage/v1/object/public/Files/${path}`;
+}
+
+async function renderFiles(type, topicId){
+  const cont = document.getElementById(type+'FileList');
+  if(!cont) return;
+  cont.innerHTML = '<p style="font-size:.78rem;color:var(--gray-300);">Завантаження...</p>';
+  try {
+    const folder = `topics/${topicId}/${type}`;
+    const {data, error} = await _sb.storage.from('Files').list(folder);
+    if(error || !data || !data.length){
+      cont.innerHTML = '<p style="font-size:.78rem;color:var(--gray-300);">Файлів немає.</p>';
+      // update local cache
+      uploadedFiles[topicId+'_'+type] = [];
+      return;
+    }
+    uploadedFiles[topicId+'_'+type] = data.map(f=>({name:f.name, path:`${folder}/${f.name}`, size:fmtSize(f.metadata?.size||0)}));
+    const files = uploadedFiles[topicId+'_'+type];
+    cont.innerHTML = files.map((f,i)=>`
+      <div class="file-item">
+        <span>📄</span>
+        <a class="fi-name" href="${getFileUrl(f.path)}" target="_blank" style="color:var(--primary);text-decoration:none;">${f.name}</a>
+        <span class="fi-size">${f.size}</span>
+        ${currentUser.role==='teacher'?`<span class="fi-del" onclick="removeFile('${topicId}','${type}',${i})">✕</span>`:''}
+      </div>`).join('');
+  } catch(e){
+    cont.innerHTML = '<p style="font-size:.78rem;color:var(--danger);">Помилка завантаження файлів.</p>';
+  }
+}
+
+async function handleUpload(type, input){
+  if(!input.files.length) return;
+  const folder = `topics/${currentTopicId}/${type}`;
+  const btn = document.querySelector(`#${type}DropArea .file-drop`);
+  if(btn) btn.innerHTML = '<p>⏳ Завантаження...</p>';
+  for(const file of input.files){
+    const path = `${folder}/${Date.now()}_${file.name}`;
+    const {error} = await _sb.storage.from('Files').upload(path, file, {upsert:true});
+    if(error) alert(`Помилка: ${error.message}`);
+  }
+  await renderFiles(type, currentTopicId);
+  input.value='';
+  if(btn) btn.innerHTML = '<p>📎 <strong>Завантажити файл</strong> (PDF, PPTX, зображення)</p>';
+}
+
+async function removeFile(topicId, type, i){
+  if(!confirm('Видалити файл?')) return;
+  const files = uploadedFiles[topicId+'_'+type]||[];
+  const f = files[i];
+  if(!f) return;
+  await _sb.storage.from('Files').remove([f.path]);
+  await renderFiles(type, topicId);
+}
 
 // ═══════════════════════════════════════════════════════
 //  HW TAB
@@ -1010,7 +1016,7 @@ function renderHwTab(topicId){
     ${subs.length===0?'<div class="empty"><div class="ei">📭</div><p>Немає зданих робіт</p></div>':
     subs.map((s,i)=>`<div style="border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:.82rem;margin-bottom:.6rem;">
       <div style="font-weight:700;font-size:.83rem;">${s.studentName}</div>
-      <div style="font-size:.76rem;color:var(--gray-400);margin:.18rem 0 .45rem;">📎 <a href="#" style="color:var(--primary);">${s.file}</a></div>
+      <div style="font-size:.76rem;color:var(--gray-400);margin:.18rem 0 .45rem;">📎 <a href="${s.url||'#'}" target="_blank" style="color:var(--primary);">${s.file}</a></div>
       ${s.comment?`<p style="font-size:.76rem;font-style:italic;color:var(--gray-500);">"${s.comment}"</p>`:''}
       <div style="display:flex;gap:.45rem;align-items:center;margin-top:.55rem;">
         <input type="number" min="0" max="12" placeholder="Оцінка" id="g_${topicId}_${i}" value="${s.grade||''}" style="width:78px;padding:.35rem .48rem;border:1.5px solid var(--gray-200);border-radius:7px;font-size:.83rem;text-align:center;">
@@ -1023,7 +1029,7 @@ function renderHwTab(topicId){
     const submitted=myHwSubmitted[topicId];
     const myR=(studentHwSubs[topicId]||[]).find(s=>s.studentEmail===currentUser.email);
     cont.innerHTML=`<div class="card-hdr"><h3>ДЗ — ${st.title}</h3><span class="badge badge-hw">ДЗ</span></div>
-    ${hwFiles.length?`<h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.45rem;">📄 Файл від вчителя</h4>${hwFiles.map(f=>`<div class="file-item"><span>📄</span><span class="fi-name">${f.name}</span><span style="color:var(--primary);font-size:.73rem;">⬇ Завантажити</span></div>`).join('')}<hr class="div">`:''}
+    ${hwFiles.length?`<h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.45rem;">📄 Файл від вчителя</h4>${hwFiles.map(f=>`<div class="file-item"><span>📄</span><a class="fi-name" href="${f.url||'#'}" target="_blank" style="color:var(--primary);text-decoration:none;">${f.name}</a><span style="color:var(--primary);font-size:.73rem;">⬇ Завантажити</span></div>`).join('')}<hr class="div">`:''}
     <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.6rem;">📤 Здати виконане завдання</h4>
     ${submitted?`<div class="file-item"><span>✅</span><span class="fi-name">${submitted}</span><span style="color:var(--success);font-size:.75rem;">Здано</span></div>`:`
     <div class="file-drop" onclick="document.getElementById('studentHwInput').click()"><p>📎 <strong>Прикріпити файл</strong> (фото, PDF, JPG, PNG)</p></div>
@@ -1035,33 +1041,58 @@ function renderHwTab(topicId){
     ${myR&&myR.grade!=null?`<hr class="div"><div class="result-box">✅ Результат: <strong>Оцінка: ${myR.grade}</strong><br>${myR.teacherComment||''}</div>`:''}`;
   }
 }
-function uploadHwTeacher(topicId,input){if(!hwByTopic[topicId])hwByTopic[topicId]=[];Array.from(input.files).forEach(f=>hwByTopic[topicId].push({name:f.name,size:fmtSize(f.size)}));renderHwTab(topicId);input.value='';}
-function removeHwFile(topicId,i){hwByTopic[topicId].splice(i,1);renderHwTab(topicId);}
+async function uploadHwTeacher(topicId, input){
+  if(!input.files.length) return;
+  const file = input.files[0];
+  const path = `hw/${topicId}/teacher/${Date.now()}_${file.name}`;
+  const {error} = await _sb.storage.from('Files').upload(path, file, {upsert:true});
+  if(error){alert(`Помилка: ${error.message}`);return;}
+  if(!hwByTopic[topicId]) hwByTopic[topicId]=[];
+  hwByTopic[topicId].push({name:file.name, path, size:fmtSize(file.size), url:getFileUrl(path)});
+  renderHwTab(topicId); input.value='';
+}
+
+async function removeHwFile(topicId, i){
+  if(!confirm('Видалити файл ДЗ?')) return;
+  const f = hwByTopic[topicId]?.[i];
+  if(f?.path) await _sb.storage.from('Files').remove([f.path]);
+  hwByTopic[topicId].splice(i,1);
+  renderHwTab(topicId);
+}
+
 function saveGrade(topicId,i){
   const g=document.getElementById(`g_${topicId}_${i}`).value;
   const c=document.getElementById(`tc_${topicId}_${i}`).value;
   if(studentHwSubs[topicId]){studentHwSubs[topicId][i].grade=g;studentHwSubs[topicId][i].teacherComment=c;}
   renderHwTab(topicId);buildHwTeacherList();
 }
-function submitStudentHw(topicId,input){
-  if(!input.files.length)return;
-  const f=input.files[0];
-  myHwSubmitted[topicId]=f.name;
-  if(!studentHwSubs[topicId])studentHwSubs[topicId]=[];
-  const nm=currentUser.full_name||currentUser.name;
-  studentHwSubs[topicId].push({studentName:nm,studentEmail:currentUser.email,av:getAv(nm),file:f.name,comment:'',grade:null,teacherComment:''});
-  addNotif(nm,getAv(nm),`Здав(ла) ДЗ з теми "${topicState[topicId].title}"`,'hw');
-  renderHwTab(topicId);buildStudentHwList();input.value='';
+
+async function submitStudentHw(topicId, input){
+  if(!input.files.length) return;
+  const file = input.files[0];
+  const nm = currentUser.full_name;
+  const safeName = nm.replace(/\s+/g,'_');
+  const path = `hw/${topicId}/students/${safeName}_${Date.now()}_${file.name}`;
+  const {error} = await _sb.storage.from('Files').upload(path, file, {upsert:true});
+  if(error){alert(`Помилка завантаження: ${error.message}`);return;}
+  myHwSubmitted[topicId] = file.name;
+  if(!studentHwSubs[topicId]) studentHwSubs[topicId]=[];
+  studentHwSubs[topicId].push({
+    studentName:nm, studentEmail:currentUser.email, av:getAv(nm),
+    file:file.name, url:getFileUrl(path), path, comment:'', grade:null, teacherComment:''
+  });
+  addNotif(nm, getAv(nm), `Здав(ла) ДЗ з теми "${topicState[topicId].title}"`, 'hw');
+  renderHwTab(topicId); buildStudentHwList(); input.value='';
 }
 function sendStudentComment(topicId){
   const txt=document.getElementById('stuComment_'+topicId)?.value?.trim();
   if(!txt)return;
-  const nm=currentUser.full_name||currentUser.name;
+  const nm=currentUser.full_name;
   addNotif(nm,getAv(nm),`Запитання: "${txt.substring(0,65)}"`,'question');
   document.getElementById('stuComment_'+topicId).value='';
   alert('✅ Повідомлення надіслано!');
 }
-function getAv(name){return (name||'??').split(' ').map(p=>p[0]).join('').toUpperCase().substring(0,2);}
+function getAv(name){return (name||'??').split(' ').map(p=>p[0]).join('').toUpperCase().substring(0,2)||'??';}
 function addNotif(from,av,text,type){
   notifications.unshift({id:'n'+Date.now(),from,av,text,type,time:'щойно',read:false});
   buildDashContent();updateNotifBadge();
@@ -1073,7 +1104,7 @@ function addNotif(from,av,text,type){
 function buildDashContent(){
   const isT=currentUser.role==='teacher';
   if(isT){
-    const regCount=isSupabaseConfigured?registeredProfiles.filter(p=>p.role==='student').length:DEMO_USERS.filter(u=>u.role==='student').length;
+    const regCount=registeredProfiles.filter(p=>p.role==='student').length;
     document.getElementById('teacherStatRow').innerHTML=`
       <div class="stat-card"><div class="stat-num">${regCount}</div><div class="stat-lbl">Зареєстровано учнів</div></div>
       <div class="stat-card"><div class="stat-num">${allowedStudents.length}</div><div class="stat-lbl">Дозволених email</div></div>
@@ -1081,8 +1112,7 @@ function buildDashContent(){
       <div class="stat-card"><div class="stat-num">${notifications.filter(n=>!n.read).length}</div><div class="stat-lbl">Нових повідомлень</div></div>`;
     document.getElementById('dashNotifs').innerHTML=notifications.slice(0,4).map(n=>notifHtml(n)).join('')||'<div class="empty"><p>Немає повідомлень</p></div>';
   } else {
-    const nm=currentUser.full_name||currentUser.name;
-    const myR=testResults.filter(r=>r.student_email===currentUser.email||r.studentEmail===currentUser.email);
+    const myR=testResults.filter(r=>r.studentEmail===currentUser.email);
     const avg=myR.length?Math.round(myR.reduce((a,r)=>a+r.score/r.max_score*100,0)/myR.length):null;
     document.getElementById('studentStatRow').innerHTML=`
       <div class="stat-card"><div class="stat-num">${myR.length}</div><div class="stat-lbl">Пройдено тестів</div></div>
@@ -1133,23 +1163,23 @@ function toggleTopicActive(id,v){topicState[id].active=v;buildTopicManagePage();
 function saveTopicTitle(id,v){if(v.trim())topicState[id].title=v.trim();buildSidebarTopics();buildTopicManagePage();}
 
 // ═══════════════════════════════════════════════════════
-//  STUDENTS (teacher manages allowed emails)
+//  STUDENTS
 // ═══════════════════════════════════════════════════════
 function buildStudentsList(){
   if(currentUser.role!=='teacher')return;
-  const profiles=isSupabaseConfigured?registeredProfiles.filter(p=>p.role==='student'):DEMO_USERS.filter(u=>u.role==='student');
+  const profiles=registeredProfiles.filter(p=>p.role==='student');
   document.getElementById('studentsList').innerHTML=`
   <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:.65rem;">✉️ Дозволені email (${allowedStudents.length})</h4>
   ${allowedStudents.map((s,i)=>{
     const prof=profiles.find(p=>p.email===s.email);
-    const myTests=testResults.filter(r=>r.studentEmail===s.email||r.student_email===s.email);
+    const myTests=testResults.filter(r=>r.studentEmail===s.email);
     return `<div class="student-row">
-      <div class="stu-av">${prof?getAv(prof.full_name||prof.name):'?'}</div>
+      <div class="stu-av">${prof?getAv(prof.full_name):'?'}</div>
       <div style="flex:1;">
-        <div style="font-weight:700;font-size:.83rem;">${prof?(prof.full_name||prof.name):'Ще не зареєстрований'}</div>
+        <div style="font-weight:700;font-size:.83rem;">${prof?prof.full_name:'Ще не зареєстрований'}</div>
         <div style="font-size:.73rem;color:var(--gray-400);">${s.email}</div>
         ${!prof?`<span class="pending-badge">⏳ Очікує реєстрації</span>`:''}
-        ${myTests.length?`<div style="margin-top:.3rem;">${myTests.map(r=>`<span class="tag tag-blue" style="font-size:.66rem;margin-right:.3rem;">${(tests.find(t=>t.id===r.testId||t.id===r.test_id)?.title||'Тест').substring(0,18)}: ${r.score}/${r.max_score||r.maxScore} (${r.attempts}x)</span>`).join('')}</div>`:''}
+        ${myTests.length?`<div style="margin-top:.3rem;">${myTests.map(r=>`<span class="tag tag-blue" style="font-size:.66rem;margin-right:.3rem;">${(tests.find(t=>t.id===r.testId)?.title||'Тест').substring(0,18)}: ${r.score}/${r.max_score} (${r.attempts}x)</span>`).join('')}</div>`:''}
       </div>
       <button class="btn btn-danger btn-sm" onclick="removeAllowedStudent(${i})">✕</button>
     </div>`;
@@ -1164,13 +1194,10 @@ async function addAllowedStudent(){
   errEl.textContent='';
 
   if(isSupabaseConfigured){
-    const {error}=await sbClient.from('allowed_students').insert({email,added_by:currentUser.id});
+    const {error}=await _sb.from('allowed_students').insert({email,added_by:currentUser.id});
     if(error){errEl.textContent=error.message;return;}
-    allowedStudents.push({email});
-  } else {
-    allowedStudents.push({email});
-    demoAllowed.push({email});
   }
+  allowedStudents.push({email});
   closeModal('addStudentModal');
   document.getElementById('newStudentEmail').value='';
   buildStudentsList();buildDashContent();
@@ -1178,12 +1205,8 @@ async function addAllowedStudent(){
 async function removeAllowedStudent(i){
   if(!confirm('Видалити дозволений email?'))return;
   const em=allowedStudents[i].email;
-  if(isSupabaseConfigured){
-    await sbClient.from('allowed_students').delete().eq('email',em);
-  }
+  if(isSupabaseConfigured){ await _sb.from('allowed_students').delete().eq('email',em); }
   allowedStudents.splice(i,1);
-  const di=demoAllowed.findIndex(x=>x.email===em);
-  if(di>=0)demoAllowed.splice(di,1);
   buildStudentsList();buildDashContent();
 }
 
@@ -1275,11 +1298,10 @@ function buildTeacherTestList(){
 function buildStudentTestList(){
   if(currentUser.role!=='student')return;
   document.getElementById('studentTestList').innerHTML=tests.map((t,i)=>{
-    const myR=testResults.filter(r=>(r.studentEmail||r.student_email)===currentUser.email&&(r.testId||r.test_id)===t.id);
+    const myR=testResults.filter(r=>r.studentEmail===currentUser.email&&r.testId===t.id);
     const lastR=myR[myR.length-1];
-    const maxS=lastR?.max_score||lastR?.maxScore||30;
     return `<div class="test-li"><div class="tli-num">0${i+1}</div>
-    <div class="tli-info"><div class="tli-name">${t.title}</div><div class="tli-meta">${lastR?`✅ Результат: ${lastR.score}/${maxS} · Спроб: ${myR.length}`:'⏳ Не пройдено · 30 завдань'}</div></div>
+    <div class="tli-info"><div class="tli-name">${t.title}</div><div class="tli-meta">${lastR?`✅ Результат: ${lastR.score}/${lastR.max_score} · Спроб: ${myR.length}`:'⏳ Не пройдено · 30 завдань'}</div></div>
     <button class="btn btn-primary btn-sm" onclick="startTest('${t.id}')">▶ ${lastR?'Ще раз':'Почати'}</button></div>`;
   }).join('')||'<div class="empty"><div class="ei">📝</div><p>Тестів поки немає</p></div>';
 }
@@ -1289,13 +1311,7 @@ function buildTestBuilder(){
   <div class="card-hdr"><h3>Конструктор тесту НМТ-формату</h3></div>
   <div class="form-group"><label>Назва тесту</label><input type="text" placeholder="Назва..."></div>
   <p style="font-size:.77rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin:.6rem 0 .45rem;">Завдання 1–20 (одна правильна відповідь)</p>
-  ${Array.from({length:20},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${i+1}</div><input type="text" placeholder="Питання..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.32rem;"><div style="display:grid;grid-template-columns:1fr 1fr;gap:.38rem;">${['А','Б','В','Г'].map((l,j)=>`<div style="display:flex;align-items:center;gap:.32rem;"><input type="radio" name="c${i}" value="${j}"><input type="text" placeholder="${l})" style="flex:1;padding:.32rem .52rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);"></div>`).join('')}</div><input type="text" placeholder="Пояснення..." style="width:100%;margin-top:.32rem;padding:.35rem .58px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.75rem;font-family:var(--font-main);"></div>`).join('')}
-  <p style="font-size:.77rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin:.6rem 0 .45rem;">Завдання 21–24 (відповідність, 4 бали)</p>
-  ${Array.from({length:4},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${21+i}</div><input type="text" placeholder="Умова..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.38rem;"><div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;">${['1','2','3','4'].map(n=>`<input type="text" placeholder="Ліворуч ${n}" style="padding:.32rem .52rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);margin-bottom:.28rem;">`).join('')}${['А','Б','В','Г'].map(l=>`<input type="text" placeholder="Праворуч ${l}" style="padding:.32rem .52rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);margin-bottom:.28rem;">`).join('')}</div></div>`).join('')}
-  <p style="font-size:.77rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin:.6rem 0 .45rem;">Завдання 25–27 (хронологія)</p>
-  ${Array.from({length:3},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${25+i}</div><input type="text" placeholder="Умова..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.38rem;">${[1,2,3,4].map(n=>`<input type="text" placeholder="Подія ${n}" style="width:100%;padding:.32rem .58rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);margin-bottom:.28rem;">`).join('')}</div>`).join('')}
-  <p style="font-size:.77rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin:.6rem 0 .45rem;">Завдання 28–30 (3 цифри з 7, 3 бали)</p>
-  ${Array.from({length:3},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${28+i}</div><input type="text" placeholder="Питання..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.38rem;">${[1,2,3,4,5,6,7].map(n=>`<input type="text" placeholder="${n}) Варіант відповіді ${n}" style="width:100%;padding:.3rem .56rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.76rem;font-family:var(--font-main);margin-bottom:.25rem;">`).join('')}<input type="text" placeholder="Правильні цифри (напр: 2,4,6)" style="width:100%;padding:.35rem .58rem;border:1.5px solid var(--primary);border-radius:6px;font-size:.78rem;font-family:var(--font-main);margin-top:.2rem;"></div>`).join('')}
+  ${Array.from({length:20},(_,i)=>`<div style="background:var(--gray-50);border-radius:8px;padding:.78rem;margin-bottom:.55rem;"><div style="font-size:.7rem;font-weight:700;color:var(--primary);margin-bottom:.32rem;">Завдання ${i+1}</div><input type="text" placeholder="Питання..." style="width:100%;padding:.42rem .68rem;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--font-main);font-size:.8rem;margin-bottom:.32rem;"><div style="display:grid;grid-template-columns:1fr 1fr;gap:.38rem;">${['А','Б','В','Г'].map((l,j)=>`<div style="display:flex;align-items:center;gap:.32rem;"><input type="radio" name="c${i}" value="${j}"><input type="text" placeholder="${l})" style="flex:1;padding:.32rem .52rem;border:1.5px solid var(--gray-200);border-radius:6px;font-size:.78rem;font-family:var(--font-main);"></div>`).join('')}</div></div>`).join('')}
   <button class="btn btn-primary" style="margin-top:.65rem;" onclick="alert('✅ Тест збережено (демо)')">💾 Зберегти тест</button></div>`;
 }
 
@@ -1305,10 +1321,10 @@ function buildTestResultsDiv(){
   if(!d)return;
   if(!testResults.length){d.innerHTML='<div class="empty"><div class="ei">📊</div><p>Результати з\'являться після проходження тестів</p></div>';return;}
   const grouped={};
-  testResults.forEach(r=>{const em=r.studentEmail||r.student_email;if(!grouped[em])grouped[em]=[];grouped[em].push(r);});
+  testResults.forEach(r=>{if(!grouped[r.studentEmail])grouped[r.studentEmail]=[];grouped[r.studentEmail].push(r);});
   d.innerHTML=Object.entries(grouped).map(([em,rs])=>`
     <h4 style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin:.75rem 0 .42rem;">${rs[0].studentName||em}</h4>`+
-    rs.map(r=>`<div class="test-li" style="cursor:default;"><div class="tli-num">📊</div><div class="tli-info"><div class="tli-name">${tests.find(t=>t.id===(r.testId||r.test_id))?.title||'Тест'}</div><div class="tli-meta">Бал: ${r.score}/${r.max_score||r.maxScore||30} · Спроб: ${r.attempts||1} · ${r.date}</div></div></div>`).join('')
+    rs.map(r=>`<div class="test-li" style="cursor:default;"><div class="tli-num">📊</div><div class="tli-info"><div class="tli-name">${tests.find(t=>t.id===r.testId)?.title||'Тест'}</div><div class="tli-meta">Бал: ${r.score}/${r.max_score} · Спроб: ${r.attempts||1} · ${r.date}</div></div></div>`).join('')
   ).join('');
 }
 
@@ -1338,7 +1354,6 @@ function renderTakeTest(){
 }
 
 function renderQ(q,idx,finished){
-  const saved=ttSaved[idx];
   const labels={single:'Одна правильна відповідь',match:'Встановіть відповідність (4 бали)',chrono:'Хронологічна послідовність',open:'Вкажіть 3 цифри з 7 (по 1 балу)'};
   let inner='';
   if(q.type==='single'){
@@ -1346,7 +1361,7 @@ function renderQ(q,idx,finished){
       let cls='tt-option';
       if(finished){cls+=' disabled';if(j===q.correct)cls+=' correct';else if(ttAnswers[idx]===j)cls+=' wrong';}
       else if(ttAnswers[idx]===j)cls+=' selected';
-      return `<div class="${cls}" onclick="${finished||saved?'':'selOpt('+idx+','+j+')'}"><input type="radio" name="q${idx}" ${ttAnswers[idx]===j?'checked':''} ${finished||saved?'disabled':''}> ${o}</div>`;
+      return `<div class="${cls}" onclick="${finished||ttSaved[idx]?'':'selOpt('+idx+','+j+')'}"><input type="radio" name="q${idx}" ${ttAnswers[idx]===j?'checked':''} ${finished||ttSaved[idx]?'disabled':''}> ${o}</div>`;
     }).join('');
   } else if(q.type==='match'){
     const uA=ttAnswers[idx]||{};
@@ -1355,7 +1370,7 @@ function renderQ(q,idx,finished){
       const bad=finished&&uA[j]!==undefined&&uA[j]!==q.correct[j];
       return `<div class="match-row">
         <div class="match-left">${j+1}. ${l}</div>
-        <div class="match-right"><select id="m_${idx}_${j}" onchange="selMatch(${idx},${j},this.value)" ${finished||saved?'disabled':''} style="${ok?'border-color:var(--success);background:#E6F7EE;':bad?'border-color:var(--danger);background:#FEECEC;':''}">
+        <div class="match-right"><select id="m_${idx}_${j}" onchange="selMatch(${idx},${j},this.value)" ${finished||ttSaved[idx]?'disabled':''} style="${ok?'border-color:var(--success);background:#E6F7EE;':bad?'border-color:var(--danger);background:#FEECEC;':''}">
           <option value="">—</option>
           ${q.right.map((r,k)=>`<option value="${k}" ${uA[j]===k?'selected':''}>${String.fromCharCode(1040+k)}. ${r}</option>`).join('')}
         </select></div>
@@ -1369,7 +1384,7 @@ function renderQ(q,idx,finished){
         const ok=finished&&uA[j]===q.correct[j];
         const bad=finished&&uA[j]!==undefined&&uA[j]!==q.correct[j];
         return `<div class="chrono-item"><div class="ch-event">${e}</div>
-          <select class="ch-sel" id="ch_${idx}_${j}" onchange="selChrono(${idx},${j},this.value)" ${finished||saved?'disabled':''} style="${ok?'border-color:var(--success);background:#E6F7EE;':bad?'border-color:var(--danger);background:#FEECEC;':''}">
+          <select class="ch-sel" id="ch_${idx}_${j}" onchange="selChrono(${idx},${j},this.value)" ${finished||ttSaved[idx]?'disabled':''} style="${ok?'border-color:var(--success);background:#E6F7EE;':bad?'border-color:var(--danger);background:#FEECEC;':''}">
             <option value="">№</option>
             ${[1,2,3,4].map(n=>`<option value="${n-1}" ${uA[j]===n-1?'selected':''}>${n}</option>`).join('')}
           </select>
@@ -1379,18 +1394,18 @@ function renderQ(q,idx,finished){
   } else if(q.type==='open'){
     const uA=ttAnswers[idx]||['','',''];
     inner=`<div style="margin-bottom:.72rem;">${q.options.map((o,j)=>`<div style="font-size:.8rem;padding:.28rem 0;color:var(--gray-600);">${j+1}) ${o}</div>`).join('')}</div>
-    <p style="font-size:.76rem;color:var(--gray-500);margin-bottom:.45rem;">Впишіть цифри правильних відповідей (по одній у кожну клітинку):</p>
+    <p style="font-size:.76rem;color:var(--gray-500);margin-bottom:.45rem;">Впишіть цифри правильних відповідей:</p>
     <div class="open-cells">`+
     [0,1,2].map(j=>{
       const ok=finished&&uA[j]&&q.answers.includes(uA[j]);
       const bad=finished&&uA[j]&&!q.answers.includes(uA[j]);
-      return `<input class="open-cell ${finished?(ok?'correct-cell':bad?'wrong-cell':''):''}" type="text" maxlength="1" id="op_${idx}_${j}" placeholder="${j+1}" ${finished||saved?'disabled':''} value="${uA[j]||''}" oninput="updOpen(${idx},${j},this.value)">`;
+      return `<input class="open-cell ${finished?(ok?'correct-cell':bad?'wrong-cell':''):''}" type="text" maxlength="1" id="op_${idx}_${j}" placeholder="${j+1}" ${finished||ttSaved[idx]?'disabled':''} value="${uA[j]||''}" oninput="updOpen(${idx},${j},this.value)">`;
     }).join('')+`</div>`+
     (finished?`<p style="font-size:.73rem;color:var(--gray-400);margin-top:.42rem;">✅ Правильні: ${q.answers.join(', ')}</p>`:'');
   }
   const expl=finished&&q.explanation?`<div class="explanation-box">💡 <strong>Пояснення:</strong> ${q.explanation}</div>`:'';
-  const saveBtn=(!finished&&!saved)?`<div class="save-btn-wrap"><button class="btn btn-primary btn-sm" onclick="saveAnswer(${idx})">💾 Зберегти відповідь</button></div>`:'';
-  const savedMark=(saved&&!finished)?`<div style="margin-top:.6rem;color:var(--success);font-size:.78rem;font-weight:700;">✅ Збережено</div>`:'';
+  const saveBtn=(!finished&&!ttSaved[idx])?`<div class="save-btn-wrap"><button class="btn btn-primary btn-sm" onclick="saveAnswer(${idx})">💾 Зберегти відповідь</button></div>`:'';
+  const savedMark=(ttSaved[idx]&&!finished)?`<div style="margin-top:.6rem;color:var(--success);font-size:.78rem;font-weight:700;">✅ Збережено</div>`:'';
   return `<div class="tt-question" id="ttQ${idx}">
     <div class="tt-q-label">Завдання ${q.n} · ${labels[q.type]||''}</div>
     <div class="tt-q-text">${q.q}</div>
@@ -1426,23 +1441,21 @@ function submitTestFinal(){
     if(q.type==='single'){maxScore+=1;if(ans===q.correct)score+=1;}
     else if(q.type==='match'){
       maxScore+=4;
-      const c=[0,1,2,3].filter(j=>ans&&ans[j]===q.correct[j]).length;
-      score+=c; // 4/3/2/1/0
+      if(ans){const c=[0,1,2,3].filter(j=>ans[j]===q.correct[j]).length;score+=c;}
     } else if(q.type==='chrono'){
       maxScore+=3;
-      if(!ans)return;
-      const all=[0,1,2,3].every(j=>ans[j]===q.correct[j]);
-      const f=ans[0]===q.correct[0],l=ans[3]===q.correct[3];
-      if(all)score+=3;else if(f&&l)score+=2;else if(f||l)score+=1;
+      if(ans){
+        const all=[0,1,2,3].every(j=>ans[j]===q.correct[j]);
+        const f=ans[0]===q.correct[0],l=ans[3]===q.correct[3];
+        if(all)score+=3;else if(f&&l)score+=2;else if(f||l)score+=1;
+      }
     } else if(q.type==='open'){
       maxScore+=3;
-      if(!ans)return;
-      const c=ans.filter(a=>a&&q.answers.includes(a.trim())).length;
-      score+=Math.min(c,3); // 1 бал за кожну правильну цифру
+      if(ans){const c=ans.filter(a=>a&&q.answers.includes(a.trim())).length;score+=Math.min(c,3);}
     }
   });
-  const nm=currentUser.full_name||currentUser.name;
-  const myPrev=testResults.filter(r=>(r.studentEmail||r.student_email)===currentUser.email&&(r.testId||r.test_id)===activeTest.id);
+  const nm=currentUser.full_name;
+  const myPrev=testResults.filter(r=>r.studentEmail===currentUser.email&&r.testId===activeTest.id);
   const attempts=(myPrev.length||0)+1;
   testResults.push({studentEmail:currentUser.email,studentName:nm,testId:activeTest.id,score,max_score:maxScore,date:new Date().toLocaleDateString('uk-UA'),attempts});
   addNotif(nm,getAv(nm),`Пройшов(ла) "${activeTest.title}" — ${score}/${maxScore} (спроба ${attempts})`,'test');
