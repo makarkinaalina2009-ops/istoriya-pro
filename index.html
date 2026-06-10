@@ -1463,7 +1463,7 @@ function refreshQ(idx){
 }
 function scrollToQ(idx){document.getElementById('ttQ'+idx)?.scrollIntoView({behavior:'smooth',block:'center'});}
 
-function submitTestFinal(){
+async function submitTestFinal(){
   activeTest.questions.forEach((_,i)=>{if(!ttSaved[i])saveAnswer(i);});
   testFinished=true;
   let score=0,maxScore=0;
