@@ -797,17 +797,25 @@ async function syncFromSupabase(){
     const {data:as} = await _sb.from('allowed_students').select('email');
     if(as) allowedStudents=as;
 
+    // Активні теми
+    const {data:ts} = await _sb.from('topic_states').select('*');
+    if(ts && ts.length){ ts.forEach(t=>{ if(topicState[t.topic_id]){ topicState[t.topic_id].active=t.active; if(t.title) topicState[t.topic_id].title=t.title; } }); }
+
+    // Результати тестів
+    const {data:tr} = await _sb.from('test_results').select('*').order('created_at',{ascending:false});
+    if(tr) testResults=tr.map(r=>({studentEmail:r.student_email,studentName:r.student_name,testId:r.test_id,score:r.score,max_score:r.max_score,attempts:r.attempts,date:r.date}));
+
+    // Здані ДЗ
+    const {data:hw} = await _sb.from('hw_submissions').select('*').order('created_at',{ascending:true});
+    if(hw){ hw.forEach(s=>{ if(!studentHwSubs[s.topic_id]) studentHwSubs[s.topic_id]=[]; if(!studentHwSubs[s.topic_id].find(x=>x.studentEmail===s.student_email&&x.file===s.file_name)){ studentHwSubs[s.topic_id].push({dbId:s.id,studentName:s.student_name,studentEmail:s.student_email,av:getAv(s.student_name),file:s.file_name,path:s.file_path,url:s.file_url,comment:s.comment||'',grade:s.grade||null,teacherComment:s.teacher_comment||''}); } if(currentUser.role==='student'&&s.student_email===currentUser.email){ myHwSubmitted[s.topic_id]=s.file_name; } }); }
+
     if(currentUser.role==='teacher'){
+      // Повідомлення
+      const {data:notifs} = await _sb.from('notifications').select('*').order('created_at',{ascending:false}).limit(50);
+      if(notifs) notifications=notifs.map(n=>({id:n.id,from:n.from_name,av:n.av,text:n.text,type:n.type,time:new Date(n.created_at).toLocaleDateString('uk-UA'),read:n.read}));
+      // Учні
       const {data:studs} = await _sb.from('students').select('*');
-      if(studs){
-        registeredProfiles = studs.map(s=>({
-          id: s.id,
-          email: s.email,
-          full_name: ((s.first_name||'')+' '+(s.last_name||'')).trim(),
-          role: 'student',
-          is_registered: s.is_registered,
-        }));
-      }
+      if(studs){ registeredProfiles=studs.map(s=>({id:s.id,email:s.email,full_name:((s.first_name||'')+' '+(s.last_name||'')).trim(),role:'student',is_registered:s.is_registered})); }
     }
   } catch(e){ console.warn('Sync error:',e); }
 }
@@ -1060,10 +1068,16 @@ async function removeHwFile(topicId, i){
   renderHwTab(topicId);
 }
 
-function saveGrade(topicId,i){
+async function saveGrade(topicId,i){
   const g=document.getElementById(`g_${topicId}_${i}`).value;
   const c=document.getElementById(`tc_${topicId}_${i}`).value;
-  if(studentHwSubs[topicId]){studentHwSubs[topicId][i].grade=g;studentHwSubs[topicId][i].teacherComment=c;}
+  if(studentHwSubs[topicId]){
+    studentHwSubs[topicId][i].grade=g;
+    studentHwSubs[topicId][i].teacherComment=c;
+    if(isSupabaseConfigured && studentHwSubs[topicId][i].dbId){
+      await _sb.from('hw_submissions').update({grade:g,teacher_comment:c}).eq('id',studentHwSubs[topicId][i].dbId);
+    }
+  }
   renderHwTab(topicId);buildHwTeacherList();
 }
 
@@ -1077,8 +1091,16 @@ async function submitStudentHw(topicId, input){
   if(error){alert(`Помилка завантаження: ${error.message}`);return;}
   myHwSubmitted[topicId] = file.name;
   if(!studentHwSubs[topicId]) studentHwSubs[topicId]=[];
+  let dbId = null;
+  if(isSupabaseConfigured){
+    const {data:ins} = await _sb.from('hw_submissions').insert({
+      topic_id:topicId, student_email:currentUser.email, student_name:nm,
+      file_name:file.name, file_path:path, file_url:getFileUrl(path), comment:'',
+    }).select('id').single();
+    if(ins) dbId=ins.id;
+  }
   studentHwSubs[topicId].push({
-    studentName:nm, studentEmail:currentUser.email, av:getAv(nm),
+    dbId, studentName:nm, studentEmail:currentUser.email, av:getAv(nm),
     file:file.name, url:getFileUrl(path), path, comment:'', grade:null, teacherComment:''
   });
   addNotif(nm, getAv(nm), `Здав(ла) ДЗ з теми "${topicState[topicId].title}"`, 'hw');
@@ -1093,8 +1115,10 @@ function sendStudentComment(topicId){
   alert('✅ Повідомлення надіслано!');
 }
 function getAv(name){return (name||'??').split(' ').map(p=>p[0]).join('').toUpperCase().substring(0,2)||'??';}
-function addNotif(from,av,text,type){
-  notifications.unshift({id:'n'+Date.now(),from,av,text,type,time:'щойно',read:false});
+async function addNotif(from,av,text,type){
+  const notif={id:'n'+Date.now(),from,av,text,type,time:'щойно',read:false};
+  notifications.unshift(notif);
+  if(isSupabaseConfigured){ await _sb.from('notifications').insert({from_name:from,av,text,type,read:false}); }
   buildDashContent();updateNotifBadge();
 }
 
@@ -1159,8 +1183,15 @@ function buildTopicManagePage(){
     </div>`;
   }).join('');
 }
-function toggleTopicActive(id,v){topicState[id].active=v;buildTopicManagePage();buildSidebarTopics();buildDashContent();buildStudentHwList();buildStudentTestList();}
-function saveTopicTitle(id,v){if(v.trim())topicState[id].title=v.trim();buildSidebarTopics();buildTopicManagePage();}
+async function toggleTopicActive(id,v){
+  topicState[id].active=v;
+  if(isSupabaseConfigured){ await _sb.from('topic_states').upsert({topic_id:id,active:v,title:topicState[id].title},{onConflict:'topic_id'}); }
+  buildTopicManagePage();buildSidebarTopics();buildDashContent();buildStudentHwList();buildStudentTestList();
+}
+async function saveTopicTitle(id,v){
+  if(v.trim()){ topicState[id].title=v.trim(); if(isSupabaseConfigured){ await _sb.from('topic_states').upsert({topic_id:id,active:topicState[id].active,title:v.trim()},{onConflict:'topic_id'}); } }
+  buildSidebarTopics();buildTopicManagePage();
+}
 
 // ═══════════════════════════════════════════════════════
 //  STUDENTS
@@ -1457,7 +1488,9 @@ function submitTestFinal(){
   const nm=currentUser.full_name;
   const myPrev=testResults.filter(r=>r.studentEmail===currentUser.email&&r.testId===activeTest.id);
   const attempts=(myPrev.length||0)+1;
-  testResults.push({studentEmail:currentUser.email,studentName:nm,testId:activeTest.id,score,max_score:maxScore,date:new Date().toLocaleDateString('uk-UA'),attempts});
+  const newResult = {studentEmail:currentUser.email,studentName:nm,testId:activeTest.id,score,max_score:maxScore,date:new Date().toLocaleDateString('uk-UA'),attempts};
+  testResults.push(newResult);
+  if(isSupabaseConfigured){ await _sb.from('test_results').insert({student_email:currentUser.email,student_name:nm,test_id:activeTest.id,score,max_score:maxScore,attempts,date:new Date().toLocaleDateString('uk-UA')}); }
   addNotif(nm,getAv(nm),`Пройшов(ла) "${activeTest.title}" — ${score}/${maxScore} (спроба ${attempts})`,'test');
   document.getElementById('ttQuestions').innerHTML=activeTest.questions.map((q,i)=>renderQ(q,i,true)).join('');
   document.getElementById('ttFooter').innerHTML=`<div class="tt-result-screen">
