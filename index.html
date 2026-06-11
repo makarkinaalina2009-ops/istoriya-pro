@@ -793,13 +793,16 @@ async function startApp(){
 
 async function syncFromSupabase(){
   if(!isSupabaseConfigured) return;
+  // Спочатку завантажуємо з localStorage (швидко)
+  loadTopicStateLocal();
   try {
     const {data:as} = await _sb.from('allowed_students').select('email');
     if(as) allowedStudents=as;
 
-    // Активні теми
-    const {data:ts} = await _sb.from('topic_states').select('*');
-    if(ts && ts.length){ ts.forEach(t=>{ if(topicState[t.topic_id]){ topicState[t.topic_id].active=t.active; if(t.title) topicState[t.topic_id].title=t.title; } }); }
+    // Активні теми з Supabase (перезаписує localStorage якщо є)
+    const {data:ts, error:tse} = await _sb.from('topic_states').select('*');
+    if(tse){ console.warn('topic_states read error:', tse); }
+    if(ts && ts.length){ ts.forEach(t=>{ if(topicState[t.topic_id]){ topicState[t.topic_id].active=t.active; if(t.title) topicState[t.topic_id].title=t.title; } }); saveTopicStateLocal(); }
 
     // Результати тестів
     const {data:tr} = await _sb.from('test_results').select('*').order('created_at',{ascending:false});
@@ -1185,12 +1188,37 @@ function buildTopicManagePage(){
 }
 async function toggleTopicActive(id,v){
   topicState[id].active=v;
-  if(isSupabaseConfigured){ await _sb.from('topic_states').upsert({topic_id:id,active:v,title:topicState[id].title},{onConflict:'topic_id'}); }
+  saveTopicStateLocal();
+  if(isSupabaseConfigured){
+    const {data,error} = await _sb.from('topic_states').upsert({topic_id:id,active:v,title:topicState[id].title},{onConflict:'topic_id'});
+    if(error){ console.error('topic_states upsert error:', JSON.stringify(error)); }
+    else { console.log('topic_states saved OK'); }
+  }
   buildTopicManagePage();buildSidebarTopics();buildDashContent();buildStudentHwList();buildStudentTestList();
 }
 async function saveTopicTitle(id,v){
-  if(v.trim()){ topicState[id].title=v.trim(); if(isSupabaseConfigured){ await _sb.from('topic_states').upsert({topic_id:id,active:topicState[id].active,title:v.trim()},{onConflict:'topic_id'}); } }
+  if(v.trim()){
+    topicState[id].title=v.trim();
+    saveTopicStateLocal();
+    if(isSupabaseConfigured){ await _sb.from('topic_states').upsert({topic_id:id,active:topicState[id].active,title:v.trim()},{onConflict:'topic_id'}); }
+  }
   buildSidebarTopics();buildTopicManagePage();
+}
+function saveTopicStateLocal(){
+  try {
+    const data = {};
+    ALL_TOPICS_DEF.forEach(t=>{ data[t.id]={active:topicState[t.id].active, title:topicState[t.id].title}; });
+    localStorage.setItem('istoriya_topic_states', JSON.stringify(data));
+  } catch(e){ console.warn('localStorage save error:', e); }
+}
+function loadTopicStateLocal(){
+  try {
+    const raw = localStorage.getItem('istoriya_topic_states');
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    ALL_TOPICS_DEF.forEach(t=>{ if(data[t.id]){ topicState[t.id].active=data[t.id].active; if(data[t.id].title) topicState[t.id].title=data[t.id].title; } });
+    return true;
+  } catch(e){ return false; }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1463,7 +1491,7 @@ function refreshQ(idx){
 }
 function scrollToQ(idx){document.getElementById('ttQ'+idx)?.scrollIntoView({behavior:'smooth',block:'center'});}
 
-async function submitTestFinal(){
+async async function submitTestFinal(){
   activeTest.questions.forEach((_,i)=>{if(!ttSaved[i])saveAnswer(i);});
   testFinished=true;
   let score=0,maxScore=0;
